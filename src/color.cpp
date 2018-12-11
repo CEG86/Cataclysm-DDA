@@ -168,10 +168,7 @@ nc_color color_manager::get_invert( const nc_color col ) const
 
 nc_color color_manager::get_random() const
 {
-    auto item = color_array.begin();
-    std::advance( item, rng( 0, num_colors - 1 ) );
-
-    return item->color;
+    return random_entry( color_array ).color;
 }
 
 void color_manager::add_color( const color_id col, const std::string &name,
