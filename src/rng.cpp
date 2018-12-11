@@ -16,21 +16,18 @@ uintmax_t rng_bits()
 {
     size_t size = sizeof( uintmax_t ) * CHAR_BIT;
     size_t word = rng_get_engine().word_size;
-    size_t shift = 0;
-    div_t res = div( int( size ), int( word ) );
+    div_t res = div( static_cast<int>( size ), static_cast<int>( word ) );
     if( res.rem ) {
         res.quot++;
     }
-    res.quot--;
     uintmax_t ret = 0;
-    while( 1 ) {
-        ret |= uintmax_t( rng_get_engine()() ) << shift;
-        if( res.quot > 0 ) {
-            shift += word;
-            res.quot--;
-            continue;
+    while( true ) {
+        res.quot--;
+        ret |= rng_get_engine()();
+        if( !res.quot ) {
+            break;
         }
-        break;
+        ret <<= word;
     }
     return ret;
 }
