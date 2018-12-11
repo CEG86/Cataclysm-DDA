@@ -4350,7 +4350,7 @@ void player::update_needs( int rate_multiplier )
     }
 
     if( !foodless && hunger_rate > 0.0f ) {
-        const int rolled_hunger = divide_roll_remainder( hunger_rate * rate_multiplier, 1.0 );
+        const int rolled_hunger = roll_remainder( hunger_rate * rate_multiplier );
         mod_hunger( rolled_hunger );
 
         // if the playing is famished, starvation increases
@@ -4362,7 +4362,7 @@ void player::update_needs( int rate_multiplier )
     }
 
     if( !foodless && thirst_rate > 0.0f ) {
-        mod_thirst( divide_roll_remainder( thirst_rate * rate_multiplier, 1.0 ) );
+        mod_thirst( roll_remainder( thirst_rate * rate_multiplier ) );
     }
     if( mycus ) {
         // Mycus feeders synchronize hunger and thirst, since their only source of both is the mycus fruit.
@@ -4383,7 +4383,7 @@ void player::update_needs( int rate_multiplier )
         fatigue_rate *= 1.0f + mutation_value( "fatigue_modifier" );
 
         if( fatigue_rate > 0.0f ) {
-            int fatigue_roll = divide_roll_remainder( fatigue_rate * rate_multiplier, 1.0 );
+            int fatigue_roll = roll_remainder( fatigue_rate * rate_multiplier );
             mod_fatigue( fatigue_roll );
 
             if( get_option< bool >( "SLEEP_DEPRIVATION" ) ) {
@@ -4418,7 +4418,7 @@ void player::update_needs( int rate_multiplier )
         recovery_rate -= float( get_perceived_pain() ) / 60;
 
         if( recovery_rate > 0.0f ) {
-            int recovered = divide_roll_remainder( recovery_rate * rate_multiplier, 1.0 );
+            int recovered = roll_remainder( recovery_rate * rate_multiplier );
             if( get_fatigue() - recovered < -20 ) {
                 // Should be wake up, but that could prevent some retroactive regeneration
                 sleep.set_duration( 1_turns );
@@ -6634,20 +6634,19 @@ void player::update_body_wetness( const w_point &weather )
     // A modifier on drying time
     double delay = 1.0;
     // Weather slows down drying
-    delay -= ( weather.temperature - 65 ) / 100.0;
-    delay += ( weather.humidity - 66 ) / 100.0;
+    delay += ( ( weather.humidity - 66 ) - ( weather.temperature - 65 ) ) / 100;
     delay = std::max( 0.1, delay );
     // Fur/slime retains moisture
     if( has_trait( trait_LIGHTFUR ) || has_trait( trait_FUR ) || has_trait( trait_FELINE_FUR ) ||
         has_trait( trait_LUPINE_FUR ) || has_trait( trait_CHITIN_FUR ) || has_trait( trait_CHITIN_FUR2 ) ||
         has_trait( trait_CHITIN_FUR3 )) {
-        delay = delay * 6 / 5;
+        delay *= 1.2;
     }
     if( has_trait( trait_URSINE_FUR ) || has_trait( trait_SLIMY ) ) {
-        delay = delay * 3 / 2;
+        delay *= 1.5;
     }
 
-    if( !one_in_improved( average_drying * delay / 100.0 ) ) {
+    if( !x_in_y( 1, average_drying / 100.0 * delay ) ) {
         // No drying this turn
         return;
     }

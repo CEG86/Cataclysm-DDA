@@ -2535,7 +2535,7 @@ bool repair_item_actor::handle_components( player &pl, const item &fix,
     // TODO: should 250_ml be part of the cost_scaling?
     const int items_needed = std::max<int>( 1, just_check ?
                                             ceil( fix.volume() / 250_ml * cost_scaling ) :
-                                            divide_roll_remainder( fix.volume() / 250_ml * cost_scaling, 1.0f ) );
+                                            roll_remainder( fix.volume() / 250_ml * cost_scaling ) );
 
     // Go through all discovered repair items and see if we have any of them available
     for( const auto &entry : valid_entries ) {
