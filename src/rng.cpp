@@ -17,7 +17,7 @@ uintmax_t rng_bits()
     size_t size = sizeof( uintmax_t ) * CHAR_BIT;
     size_t word = rng_get_engine().word_size;
     size_t shift = 0;
-    div_t res = div( size, word );
+    div_t res = div( int( size ), int( word ) );
     if( res.rem ) {
         res.quot++;
     }
