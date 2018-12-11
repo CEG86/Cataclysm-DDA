@@ -21,6 +21,7 @@ uintmax_t rng_bits()
     if( res.rem ) {
         res.quot++;
     }
+    res.quot--;
     uintmax_t ret = 0;
     while( 1 ) {
         ret |= uintmax_t( rng_get_engine()() ) << shift;
