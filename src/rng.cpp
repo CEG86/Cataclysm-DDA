@@ -50,7 +50,7 @@ double rng_float( double lo, double hi )
     }
 
     decltype( rng_real_dist.param() ) range( lo,
-            std::nextafter( hi, signbit( hi ) ? std::numeric_limits<double>::lowest() :
+            std::nextafter( hi, std::signbit( hi ) ? std::numeric_limits<double>::lowest() :
                             std::numeric_limits<double>::max() );
             rng_real_dist.param( range );
             return rng_real_dist( rng_get_engine() );
