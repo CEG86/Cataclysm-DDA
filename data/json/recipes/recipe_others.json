@@ -1120,10 +1120,16 @@
     "difficulty": 6,
     "time": 180000,
     "autolearn": true,
-    "using": [ [ "forging_standard", 10 ], [ "steel_tiny", 1 ] ],
-    "qualities": [ { "id": "ANVIL", "level": 3 }, { "id": "HAMMER", "level": 3 }, { "id": "CHISEL", "level": 3 } ],
+    "using": [ [ "forging_standard", 10 ], [ "steel_tiny", 2 ] ],
+    "qualities": [
+      { "id": "ANVIL", "level": 3 },
+      { "id": "HAMMER", "level": 3 },
+      { "id": "CHISEL", "level": 3 },
+      { "id": "SAW_M", "level": 2 },
+      { "id": "CUT", "level": 1 }
+    ],
     "tools": [ [ [ "tongs", -1 ] ], [ [ "swage", -1 ] ], [ [ "crucible", -1 ], [ "crucible_clay", -1 ] ] ],
-    "components": [ [ [ "plastic_chunk", 1 ] ] ]
+    "components": [ [ [ "plastic_chunk", 2 ] ] ]
   },
   {
     "type": "recipe",
@@ -1990,7 +1996,7 @@
     "components": [
       [ [ "glasses_safety", 1 ] ],
       [ [ "hose", 3 ] ],
-      [ [ "flask_glass", 4 ], [ "jar_glass", 4 ], [ "bottle_glass", 4 ] ],
+      [ [ "flask_glass", 4 ], [ "jar_glass", 4 ], [ "bottle_glass", 4 ], [ "test_tube", 20 ] ],
       [ [ "box_small", 1 ], [ "bag_canvas", 1 ], [ "backpack", 1 ], [ "backpack_leather", 1 ], [ "rucksack", 1 ] ]
     ]
   },
@@ -2967,6 +2973,19 @@
   },
   {
     "type": "recipe",
+    "result": "test_tube",
+    "category": "CC_OTHER",
+    "subcategory": "CSC_OTHER_CONTAINERS",
+    "skill_used": "fabrication",
+    "difficulty": 4,
+    "time": 4000,
+    "book_learn": [ [ "glassblowing_book", 4 ] ],
+    "qualities": [ { "id": "CHISEL", "level": 3 } ],
+    "tools": [ [ [ "tongs", -1 ] ], [ [ "pipe", -1 ] ], [ [ "crucible", -1 ], [ "crucible_clay", -1 ] ], [ [ "forge", 5 ] ] ],
+    "components": [ [ [ "glass_shard", 1 ] ] ]
+  },
+  {
+    "type": "recipe",
     "result": "mirror",
     "category": "CC_OTHER",
     "subcategory": "CSC_OTHER_TOOLS",
@@ -3244,7 +3263,7 @@
       [ [ "sheet_metal_small", 5 ] ],
       [ [ "nail", 11 ] ],
       [ [ "wire", 1 ] ],
-      [ [ "pockknife", 1 ], [ "primitive_knife", 1 ], [ "switchblade", 1 ], [ "knife_steak", 1 ] ],
+      [ [ "pockknife", 1 ], [ "primitive_knife", 1 ], [ "copper_knife", 1 ] ],
       [ [ "screwdriver_set", 1 ] ],
       [ [ "hacksaw", 1 ] ],
       [ [ "wrench", 1 ] ],
@@ -4159,5 +4178,51 @@
     "using": [ [ "welding_standard", 30 ] ],
     "qualities": [ { "id": "HAMMER", "level": 3 }, { "id": "SAW_M", "level": 1 } ],
     "components": [ [ [ "sheet_metal", 1 ] ] ]
+  },
+  {
+    "type": "recipe",
+    "result": "platinum_grille",
+    "category": "CC_OTHER",
+    "subcategory": "CSC_OTHER_TOOLS",
+    "skill_used": "fabrication",
+    "difficulty": 5,
+    "book_learn": [ [ "textbook_chemistry", 5 ], [ "textbook_fabrication", 4 ] ],
+    "time": 120000,
+    "autolearn": true,
+    "qualities": [ { "id": "HAMMER", "level": 3 } ],
+    "tools": [ [ [ "electrolysis_kit", 10 ] ], [ [ "surface_heat", 10, "LIST" ] ] ],
+    "components": [
+      [ [ "steel_grille", 1 ] ],
+      [ [ "platinum_small", 100 ] ],
+      [ [ "water", 3 ], [ "water_clean", 3 ] ],
+      [ [ "acid", 1 ] ]
+    ]
+  },
+  {
+    "type": "recipe",
+    "result": "steel_grille",
+    "category": "CC_OTHER",
+    "subcategory": "CSC_OTHER_TOOLS",
+    "skill_used": "fabrication",
+    "difficulty": 5,
+    "time": 45000,
+    "autolearn": true,
+    "book_learn": [ [ "textbook_fabrication", 4 ] ],
+    "qualities": [ { "id": "ANVIL", "level": 3 }, { "id": "HAMMER", "level": 3 }, { "id": "CHISEL", "level": 3 } ],
+    "tools": [ [ [ "swage", -1 ] ], [ [ "tongs", -1 ] ], [ [ "forge", 250 ], [ "oxy_torch", 50 ] ] ],
+    "components": [ [ [ "steel_lump", 2 ], [ "steel_chunk", 8 ], [ "scrap", 24 ] ] ]
+  },
+  {
+    "type": "recipe",
+    "result": "pressure_cooker",
+    "category": "CC_OTHER",
+    "subcategory": "CSC_OTHER_TOOLS",
+    "skill_used": "fabrication",
+    "difficulty": 4,
+    "time": 90000,
+    "autolearn": true,
+    "qualities": [ { "id": "ANVIL", "level": 3 }, { "id": "HAMMER", "level": 3 } ],
+    "tools": [ [ [ "tongs", -1 ] ], [ [ "forge", 150 ], [ "oxy_torch", 30 ] ] ],
+    "components": [ [ [ "steel_lump", 3 ], [ "steel_chunk", 12 ], [ "scrap", 36 ] ] ]
   }
 ]

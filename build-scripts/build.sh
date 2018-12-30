@@ -6,7 +6,11 @@ set -ex
 
 function run_tests
 {
-    $WINE "$@" -r cata --rng-seed `shuf -i 0-1000000000 -n 1`
+    if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+        $WINE "$@" -d yes -r cata --rng-seed `gshuf -i 0-1000000000 -n 1`
+    else
+        $WINE "$@" -d yes -r cata --rng-seed `shuf -i 0-1000000000 -n 1`
+    fi
 }
 
 if [ -n "$CMAKE" ]
@@ -30,4 +34,5 @@ else
     then
         run_tests ./tests/cata_test $MODS
     fi
+    build-scripts/lint-json.sh
 fi

@@ -5,6 +5,7 @@
 #include "bionics.h"
 #include "bodypart.h"
 #include "cata_utility.h"
+#include "coordinate_conversions.h"
 #include "damage.h"
 #include "debug.h"
 #include "dispersion.h"
@@ -31,6 +32,8 @@
 #include "npc.h"
 #include "options.h"
 #include "output.h"
+#include "overmapbuffer.h"
+#include "overmap.h"
 #include "player.h"
 #include "projectile.h"
 #include "ranged.h"
@@ -83,11 +86,14 @@ const efftype_id effect_weed_high( "weed_high" );
 const material_id mat_leather( "leather" );
 const material_id mat_kevlar( "kevlar" );
 
-std::string const &rad_badge_color( int const rad )
-{
-    using pair_t = std::pair<int const, std::string const>;
+const trait_id trait_small2( "SMALL2" );
+const trait_id trait_small_ok( "SMALL_OK" );
 
-    static std::array<pair_t, 6> const values = {{
+const std::string &rad_badge_color( const int rad )
+{
+    using pair_t = std::pair<const int, const std::string>;
+
+    static const std::array<pair_t, 6> values = {{
             pair_t {  0, _( "green" ) },
             pair_t { 30, _( "blue" )  },
             pair_t { 60, _( "yellow" )},
@@ -97,7 +103,7 @@ std::string const &rad_badge_color( int const rad )
         }
     };
 
-    for( auto const &i : values ) {
+    for( const auto &i : values ) {
         if( rad <= i.first ) {
             return i.second;
         }
@@ -145,6 +151,11 @@ item::item( const itype *type, time_point turn, long qty ) : type( type ), bday(
         } else {
             charges = type->charges_default();
         }
+    }
+
+    if( has_flag( "NANOFAB_TEMPLATE" ) ) {
+        itype_id nanofab_recipe = item_group::item_from( "nanofab_recipes" ).typeId();
+        set_var( "NANOFAB_ITEM_ID", nanofab_recipe );
     }
 
     if( type->gun ) {
@@ -212,7 +223,7 @@ item item::make_corpse( const mtype_id &mt, time_point turn, const std::string &
         result.item_tags.insert( "REVIVE_SPECIAL" );
     }
 
-    // This is unconditional because the item constructor above sets result.name to
+    // This is unconditional because the const itemructor above sets result.name to
     // "human corpse".
     result.corpse_name = name;
 
@@ -647,6 +658,23 @@ double item::get_var( const std::string &name, const double default_value ) cons
         return default_value;
     }
     return atof( it->second.c_str() );
+}
+
+void item::set_var( const std::string &name, const tripoint &value )
+{
+    item_vars[name] = string_format( "%d,%d,%d", value.x, value.y, value.z );
+}
+
+tripoint item::get_var( const std::string &name, const tripoint &default_value ) const
+{
+    const auto it = item_vars.find( name );
+    if( it == item_vars.end() ) {
+        return default_value;
+    }
+    std::vector<std::string> values = string_split( it->second, ',' );
+    return tripoint( atoi( values[0].c_str() ),
+                     atoi( values[1].c_str() ),
+                     atoi( values[2].c_str() ) );
 }
 
 void item::set_var( const std::string &name, const std::string &value )
@@ -1566,6 +1594,8 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
 
     }
     if( is_armor() ) {
+        body_part_set covered_parts = get_covered_body_parts();
+        bool covers_anything = covered_parts.any();
 
         if( parts->test( iteminfo_parts::ARMOR_BODYPARTS ) ) {
             temp1.str( "" );
@@ -1623,10 +1653,14 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
                 temp1 << _( "The <info>right foot</info>. " );
             }
 
+            if( !covers_anything ) {
+                temp1 << _( "<info>Nothing</info>." );
+            }
+
             info.push_back( iteminfo( "ARMOR", temp1.str() ) );
         }
 
-        if( parts->test( iteminfo_parts::ARMOR_LAYER ) ) {
+        if( parts->test( iteminfo_parts::ARMOR_LAYER ) && covers_anything ) {
             temp1.str( "" );
             temp1 << _( "Layer: " );
             if( has_flag( "SKINTIGHT" ) ) {
@@ -1644,18 +1678,18 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
             info.push_back( iteminfo( "ARMOR", temp1.str() ) );
         }
 
-        if( parts->test( iteminfo_parts::ARMOR_COVERAGE ) ) {
+        if( parts->test( iteminfo_parts::ARMOR_COVERAGE ) && covers_anything ) {
             info.push_back( iteminfo( "ARMOR", _( "Coverage: " ), "<num>%",
                                       iteminfo::no_newline, get_coverage() ) );
         }
-        if( parts->test( iteminfo_parts::ARMOR_WARMTH ) ) {
+        if( parts->test( iteminfo_parts::ARMOR_WARMTH ) && covers_anything ) {
             info.push_back( iteminfo( "ARMOR", space + _( "Warmth: " ), get_warmth() ) );
         }
 
         insert_separation_line();
 
-        if( parts->test( iteminfo_parts::ARMOR_ENCUMBRANCE ) ) {
-            int encumbrance = get_encumber();
+        if( parts->test( iteminfo_parts::ARMOR_ENCUMBRANCE ) && covers_anything ) {
+            int encumbrance = get_encumber( g->u );
             std::string format;
             if( has_flag( "FIT" ) ) {
                 format = _( "<num> <info>(fits)</info>" );
@@ -1666,7 +1700,8 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
                                       iteminfo::no_newline | iteminfo::lower_is_better,
                                       encumbrance ) );
             if( !type->rigid ) {
-                const auto encumbrance_when_full = get_encumber_when_containing( get_total_capacity() );
+                const auto encumbrance_when_full =
+                    get_encumber_when_containing( g->u, get_total_capacity() );
                 info.push_back( iteminfo( "ARMOR", space + _( "Encumbrance when full: " ), "",
                                           iteminfo::no_newline | iteminfo::lower_is_better,
                                           encumbrance_when_full ) );
@@ -1686,7 +1721,7 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
         // Whatever the last entry was, we want a newline at this point
         info.back().bNewLine = true;
 
-        if( parts->test( iteminfo_parts::ARMOR_PROTECTION ) ) {
+        if( parts->test( iteminfo_parts::ARMOR_PROTECTION ) && covers_anything ) {
             info.push_back( iteminfo( "ARMOR", _( "<bold>Protection</bold>: Bash: " ), "",
                                       iteminfo::no_newline, bash_resist() ) );
             info.push_back( iteminfo( "ARMOR", space + _( "Cut: " ),
@@ -1781,7 +1816,7 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
             }
 
             std::vector<std::string> recipe_list;
-            for( auto const &elem : book.recipes ) {
+            for( const auto &elem : book.recipes ) {
                 const bool knows_it = g->u.knows_recipe( elem.recipe );
                 // If the player knows it, they recognize it even if it's not clearly stated.
                 if( elem.is_hidden() && !knows_it ) {
@@ -1927,11 +1962,17 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
     } ) ) {
 
         info.emplace_back( "QUALITIES", "", _( "Contains items with qualities:" ) );
-
+        std::map<quality_id, int> most_quality;
         for( const auto &e : contents ) {
             for( const auto &q : e.type->qualities ) {
-                name_quality( q );
+                auto emplace_result = most_quality.emplace( q );
+                if( !emplace_result.second && most_quality.at( emplace_result.first->first ) < q.second ) {
+                    most_quality[ q.first ] = q.second;
+                }
             }
+        }
+        for( const auto &q : most_quality ) {
+            name_quality( q );
         }
     }
 
@@ -2102,7 +2143,7 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
                 info.push_back( iteminfo( "DESCRIPTION",
                                           _( "* This piece of clothing <info>can be refitted</info>." ) ) );
             }
-            if( little && get_encumber() ) {
+            if( little && get_encumber( g->u ) ) {
                 if( !has_flag( "UNDERSIZE" ) ) {
                     info.push_back( iteminfo( "DESCRIPTION",
                                               _( "* These clothes are <bad>too large</bad> but <info>can be undersized</info>." ) ) );
@@ -2327,7 +2368,7 @@ std::string item::info( std::vector<iteminfo> &info, const iteminfo_query *parts
                         info.emplace_back( "DESCRIPTION", space );
                     }
 
-                    auto const description = _( contents_item.type->description.c_str() );
+                    const auto description = _( contents_item.type->description.c_str() );
 
                     if( contents_item.made_of_from_type( LIQUID ) ) {
                         auto contents_volume = contents_item.volume() * batch;
@@ -2814,7 +2855,7 @@ std::string item::tname( unsigned int quantity, bool with_prefix ) const
                        g->u.has_trait( trait_id( "SMALL_OK" ) );
     const bool fits = has_flag( "FIT" );
     const bool undersize = has_flag( "UNDERSIZE" );
-    if( get_encumber() ) {
+    if( get_encumber( g->u ) ) {
         if( small && !undersize ) {
             ret << _( " (oversize)" );
         } else if( !small && undersize ) {
@@ -2831,6 +2872,11 @@ std::string item::tname( unsigned int quantity, bool with_prefix ) const
     if( is_tool() && has_flag( "USE_UPS" ) ) {
         ret << _( " (UPS)" );
     }
+
+    if( has_var( "NANOFAB_ITEM_ID" ) ) {
+        ret << string_format( " (%s)", nname( get_var( "NANOFAB_ITEM_ID" ) ) );
+    }
+
     if( has_flag( "RADIO_MOD" ) ) {
         ret << _( " (radio:" );
         if( has_flag( "RADIOSIGNAL_1" ) ) {
@@ -2867,7 +2913,7 @@ std::string item::tname( unsigned int quantity, bool with_prefix ) const
         modtext += _( "sawn-off " );
     }
     if( has_flag( "DIAMOND" ) ) {
-        modtext += std::string( _( "diamond" ) ) + " ";
+        modtext += std::string( pgettext( "Adjective, as in diamond katana", "diamond" ) ) + " ";
     }
 
     ret.str( "" );
@@ -2931,6 +2977,14 @@ std::string item::display_name( unsigned int quantity ) const
             amt = string_format( " $%.2f", amount / 100.0 );
         } else {
             amt = string_format( " (%i)", amount );
+        }
+    }
+
+    if( is_map() ) {
+        const city *c = overmap_buffer.closest_city( omt_to_sm_copy( get_var( "reveal_map_center_omt",
+                        g->u.global_omt_location() ) ) ).city;
+        if( c != nullptr ) {
+            name = string_format( "%s %s", c->name.c_str(), name.c_str() );
         }
     }
 
@@ -3005,38 +3059,15 @@ units::mass item::weight( bool include_contents ) const
         ret *= charges;
 
     } else if( is_corpse() ) {
-        switch( corpse->size ) {
-            case MS_TINY:
-                ret =   1000_gram;
-                break;
-            case MS_SMALL:
-                ret =  40750_gram;
-                break;
-            case MS_MEDIUM:
-                ret =  81500_gram;
-                break;
-            case MS_LARGE:
-                ret = 120000_gram;
-                break;
-            case MS_HUGE:
-                ret = 200000_gram;
-                break;
-        }
-        if( made_of( material_id( "veggy" ) ) ) {
-            ret /= 3;
-        }
-        if( corpse->in_species( FISH ) || corpse->in_species( BIRD ) || corpse->in_species( INSECT ) ||
-            made_of( material_id( "bone" ) ) ) {
-            ret /= 8;
-        } else if( made_of( material_id( "iron" ) ) || made_of( material_id( "steel" ) ) ||
-                   made_of( material_id( "stone" ) ) ) {
-            ret *= 7;
-        }
+        ret = corpse->weight;
         if( has_flag( "FIELD_DRESS" ) || has_flag( "FIELD_DRESS_FAILED" ) ) {
             ret *= 0.75;
         }
         if( has_flag( "QUARTERED" ) ) {
             ret /= 4;
+        }
+        if( has_flag( "GIBBED" ) ) {
+            ret *= 0.85;
         }
 
     } else if( magazine_integral() && !is_magazine() ) {
@@ -3072,36 +3103,22 @@ units::mass item::weight( bool include_contents ) const
     return ret;
 }
 
-units::volume item::corpse_volume( m_size corpse_size ) const
+units::volume item::corpse_volume( const mtype *corpse ) const
 {
-    if( !has_flag( "QUARTERED" ) ) {
-        switch( corpse_size ) {
-            case MS_TINY:
-                return    750_ml;
-            case MS_SMALL:
-                return  30000_ml;
-            case MS_MEDIUM:
-                return  62500_ml;
-            case MS_LARGE:
-                return  92500_ml;
-            case MS_HUGE:
-                return 875000_ml;
-        }
-    } else {
-        switch( corpse_size ) {
-            case MS_TINY:
-                return    750_ml; // no quartering
-            case MS_SMALL:
-                return   7500_ml;
-            case MS_MEDIUM:
-                return  15625_ml;
-            case MS_LARGE:
-                return  23125_ml;
-            case MS_HUGE:
-                return 218750_ml;
-        }
+    units::volume corpse_volume = corpse->volume;
+    if( has_flag( "QUARTERED" ) ) {
+        corpse_volume /= 4;
     }
-    debugmsg( "unknown monster size for corpse" );
+    if( has_flag( "FIELD_DRESS" ) || has_flag( "FIELD_DRESS_FAILED" ) ) {
+        corpse_volume *= 0.75;
+    }
+    if( has_flag( "GIBBED" ) ) {
+        corpse_volume *= 0.85;
+    }
+    if( corpse_volume > 0 ) {
+        return corpse_volume;
+    }
+    debugmsg( "invalid monster volume for corpse" );
     return 0;
 }
 
@@ -3110,9 +3127,8 @@ units::volume item::base_volume() const
     if( is_null() ) {
         return 0;
     }
-
     if( is_corpse() ) {
-        return corpse_volume( corpse->size );
+        return corpse_volume( corpse );
     }
 
     if( count_by_charges() ) {
@@ -3133,7 +3149,7 @@ units::volume item::volume( bool integral ) const
     }
 
     if( is_corpse() ) {
-        return corpse_volume( corpse->size );
+        return corpse_volume( corpse );
     }
 
     const int local_volume = get_var( "volume", -1 );
@@ -3495,9 +3511,9 @@ int item::spoilage_sort_order()
     }
 
     if( subject->type->comestible ) {
-        if( subject->type->category->id() == "food" ) {
+        if( subject->get_category().id() == "food" ) {
             return bottom - 3;
-        } else if( subject->type->category->id() == "drugs" ) {
+        } else if( subject->get_category().id() == "drugs" ) {
             return bottom - 2;
         } else {
             return bottom - 1;
@@ -3594,16 +3610,17 @@ bool item::is_power_armor() const
     return t->power_armor;
 }
 
-int item::get_encumber() const
+int item::get_encumber( const Character &p ) const
 {
     units::volume contents_volume( 0 );
     for( const auto &e : contents ) {
         contents_volume += e.volume();
     }
-    return get_encumber_when_containing( contents_volume );
+    return get_encumber_when_containing( p, contents_volume );
 }
 
-int item::get_encumber_when_containing( const units::volume &contents_volume ) const
+int item::get_encumber_when_containing(
+    const Character &p, const units::volume &contents_volume ) const
 {
     const auto t = find_armor_data();
     if( t == nullptr ) {
@@ -3622,11 +3639,12 @@ int item::get_encumber_when_containing( const units::volume &contents_volume ) c
         encumber = std::max( encumber / 2, encumber - 10 );
     }
 
-    const bool tiniest = g->u.has_trait( trait_id( "SMALL2" ) ) ||
-                         g->u.has_trait( trait_id( "SMALL_OK" ) );
-    if( !has_flag( "UNDERSIZE" ) && tiniest ) {
+    const bool tiniest = p.has_trait( trait_small2 ) ||
+                         p.has_trait( trait_small_ok );
+    const bool is_undersize = has_flag( "UNDERSIZE" );
+    if( !is_undersize && tiniest ) {
         encumber *= 2; // clothes bag up around smol mousefolk and encumber them more
-    } else if( !tiniest && has_flag( "UNDERSIZE" ) ) {
+    } else if( is_undersize && !tiniest ) {
         encumber *= 3; // normal humans have a HARD time wearing undersized clothing
     }
 
@@ -3651,6 +3669,12 @@ int item::get_encumber_when_containing( const units::volume &contents_volume ) c
 
 layer_level item::get_layer() const
 {
+    if( type->armor ) {
+        // We assume that an item will never have per-item flags defining its
+        // layer, so we can defer to the itype.
+        return type->layer;
+    }
+
     if( has_flag( "SKINTIGHT" ) ) {
         return UNDERWEAR;
     } else if( has_flag( "WAIST" ) ) {
@@ -3659,8 +3683,9 @@ layer_level item::get_layer() const
         return OUTER_LAYER;
     } else if( has_flag( "BELTED" ) ) {
         return BELTED_LAYER;
+    } else {
+        return REGULAR_LAYER;
     }
-    return REGULAR_LAYER;
 }
 
 int item::get_coverage() const
@@ -4352,6 +4377,11 @@ bool item::is_armor() const
 bool item::is_book() const
 {
     return type->book.has_value();
+}
+
+bool item::is_map() const
+{
+    return get_category().id() == "maps";
 }
 
 bool item::is_container() const
@@ -5611,7 +5641,7 @@ bool item::reload( player &u, item_location loc, long qty )
         if( ammo->has_flag( "SPEEDLOADER" ) ) {
             curammo = find_type( ammo->contents.front().typeId() );
             qty = std::min( qty, ammo->ammo_remaining() );
-            ammo->ammo_consume( qty, { 0, 0, 0 } );
+            ammo->ammo_consume( qty, tripoint_zero );
             charges += qty;
         } else if( ammo_type() == ammotype( "plutonium" ) ) {
             curammo = find_type( ammo->typeId() );
@@ -6925,6 +6955,7 @@ bool item::process( player *carrier, const tripoint &pos, bool activate, int tem
             ++it;
         }
     }
+
     if( activate ) {
         return type->invoke( carrier != nullptr ? *carrier : g->u, *this, pos );
     }

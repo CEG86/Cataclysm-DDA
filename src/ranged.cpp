@@ -363,7 +363,8 @@ int Character::throw_dispersion_per_dodge( bool add_encumbrance ) const
 
 // Perfect situation gives us 1000 dispersion at lvl 0
 // This goes down linearly to 250  dispersion at lvl 10
-int Character::throwing_dispersion( const item &to_throw, Creature *critter ) const
+int Character::throwing_dispersion( const item &to_throw, Creature *critter,
+                                    bool is_blind_throw ) const
 {
     units::mass weight = to_throw.weight();
     units::volume volume = to_throw.volume();
@@ -396,10 +397,18 @@ int Character::throwing_dispersion( const item &to_throw, Creature *critter ) co
     // 1 perception per 1 eye encumbrance
     ///\EFFECT_PER decreases throwing accuracy penalty from eye encumbrance
     dispersion += std::max( 0, ( encumb( bp_eyes ) - get_per() ) * 10 );
+
+    // If throwing blind, we're assuming they mechanically can't achieve the
+    // accuracy of a normal throw.
+    if( is_blind_throw ) {
+        dispersion *= 4;
+    }
+
     return std::max( 0, dispersion );
 }
 
-dealt_projectile_attack player::throw_item( const tripoint &target, const item &to_throw )
+dealt_projectile_attack player::throw_item( const tripoint &target, const item &to_throw,
+        const cata::optional<tripoint> &blind_throw_from_pos )
 {
     // Copy the item, we may alter it before throwing
     item thrown = to_throw;
@@ -488,7 +497,11 @@ dealt_projectile_attack player::throw_item( const tripoint &target, const item &
         proj.set_custom_explosion( thrown.type->explosion );
     }
 
-    float range = rl_dist( pos(), target );
+    // Throw from the player's position, unless we're blind throwing, in which case
+    // throw from the the blind throw position instead.
+    const tripoint throw_from = blind_throw_from_pos ? *blind_throw_from_pos : pos();
+
+    float range = rl_dist( throw_from, target );
     proj.range = range;
     int skill_lvl = get_skill_level( skill_used );
     // Avoid awarding tons of xp for lucky throws against hard to hit targets
@@ -499,8 +512,9 @@ dealt_projectile_attack player::throw_item( const tripoint &target, const item &
     const float final_xp_mult = range_factor * damage_factor;
 
     Creature *critter = g->critter_at( target, true );
-    const dispersion_sources dispersion = throwing_dispersion( thrown, critter );
-    auto dealt_attack = projectile_attack( proj, pos(), target, dispersion, this );
+    const dispersion_sources dispersion = throwing_dispersion( thrown, critter,
+                                          blind_throw_from_pos.has_value() );
+    auto dealt_attack = projectile_attack( proj, throw_from, target, dispersion, this );
 
     const double missed_by = dealt_attack.missed_by;
     if( missed_by <= 0.1 && dealt_attack.hit_critter != nullptr ) {
@@ -525,13 +539,13 @@ static std::string print_recoil( const player &p )
         const int recoil_range = MAX_RECOIL - min_recoil;
         std::string level;
         if( val >= min_recoil + ( recoil_range * 2 / 3 ) ) {
-            level = "High";
+            level = pgettext( "amount of backward momentum", "High" );
         } else if( val >= min_recoil + ( recoil_range / 2 ) ) {
-            level = "Medium";
+            level = pgettext( "amount of backward momentum", "Medium" );
         } else if( val >= min_recoil + ( recoil_range / 4 ) ) {
-            level = "Low";
+            level = pgettext( "amount of backward momentum", "Low" );
         } else {
-            level = "None";
+            level = pgettext( "amount of backward momentum", "None" );
         }
         return string_format( _( "Recoil: %s" ), level );
     }
@@ -558,6 +572,10 @@ static int draw_targeting_window( const catacurses::window &w_target, const std:
 
         case TARGET_MODE_THROW:
             title = string_format( _( "Throwing %s" ), name.c_str() );
+            break;
+
+        case TARGET_MODE_THROW_BLIND:
+            title = string_format( _( "Blind throwing %s" ), name.c_str() );
             break;
 
         default:
@@ -591,8 +609,8 @@ static int draw_targeting_window( const catacurses::window &w_target, const std:
     int lines_used = getmaxy( w_target ) - 1 - text_y;
     mvwprintz( w_target, text_y++, 1, c_white, _( "Move cursor to target with directional keys" ) );
 
-    auto const front_or = [&]( std::string const & s, char const fallback ) {
-        auto const keys = ctxt.keys_bound_to( s );
+    const auto front_or = [&]( const std::string & s, const char fallback ) {
+        const auto keys = ctxt.keys_bound_to( s );
         return keys.empty() ? fallback : keys.front();
     };
 
@@ -707,7 +725,7 @@ static int print_ranged_chance( const player &p, const catacurses::window &w, in
     std::string display_type = get_option<std::string>( "ACCURACY_DISPLAY" );
 
     std::vector<aim_type> aim_types;
-    if( mode == TARGET_MODE_THROW ) {
+    if( mode == TARGET_MODE_THROW || mode == TARGET_MODE_THROW_BLIND ) {
         aim_types = get_default_aim_type();
     } else {
         aim_types = p.get_aim_types( ranged_weapon );
@@ -729,7 +747,7 @@ static int print_ranged_chance( const player &p, const catacurses::window &w, in
         }
 
         int moves_to_fire;
-        if( mode == TARGET_MODE_THROW ) {
+        if( mode == TARGET_MODE_THROW || mode == TARGET_MODE_THROW_BLIND ) {
             moves_to_fire = throw_cost( p, ranged_weapon );
         } else {
             moves_to_fire = p.gun_engagement_moves( ranged_weapon, threshold, recoil ) + time_to_fire( p,
@@ -825,14 +843,14 @@ static int draw_turret_aim( const player &p, const catacurses::window &w, int li
 }
 
 static int draw_throw_aim( const player &p, const catacurses::window &w, int line_number,
-                           const item *weapon, const tripoint &target_pos )
+                           const item *weapon, const tripoint &target_pos, bool is_blind_throw )
 {
     Creature *target = g->critter_at( target_pos, true );
     if( target != nullptr && !p.sees( *target ) ) {
         target = nullptr;
     }
 
-    const dispersion_sources dispersion = p.throwing_dispersion( *weapon, target );
+    const dispersion_sources dispersion = p.throwing_dispersion( *weapon, target, is_blind_throw );
     const double range = rl_dist( p.pos(), target_pos );
 
     const double target_size = target != nullptr ? target->ranged_target_size() : 1.0f;
@@ -850,7 +868,9 @@ static int draw_throw_aim( const player &p, const catacurses::window &w, int lin
     const auto &confidence_config = target != nullptr ?
                                     confidence_config_critter : confidence_config_object;
 
-    return print_ranged_chance( p, w, line_number, TARGET_MODE_THROW, *weapon, dispersion,
+    const target_mode throwing_target_mode = is_blind_throw ? TARGET_MODE_THROW_BLIND :
+            TARGET_MODE_THROW;
+    return print_ranged_chance( p, w, line_number, throwing_target_mode, *weapon, dispersion,
                                 confidence_config,
                                 range, target_size );
 }
@@ -934,6 +954,12 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
             idx = -1;
             if( pc.last_target_pos ) {
                 dst = *pc.last_target_pos;
+
+                if( ( pc.last_target.expired() || !pc.sees( *pc.last_target.lock().get() ) ) &&
+                    pc.has_activity( activity_id( "ACT_AIM" ) ) ) {
+                    //We lost our target. Stop auto aiming.
+                    pc.cancel_activity();
+                }
             } else {
                 auto adjacent = closest_tripoints_first( range, dst );
                 const auto target_spot = std::find_if( adjacent.begin(), adjacent.end(),
@@ -1048,12 +1074,11 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
     }
 
     const auto set_last_target = [&pc]( const tripoint & dst ) {
+        pc.last_target_pos = dst;
         if( const Creature *const critter_ptr = g->critter_at( dst, true ) ) {
             pc.last_target = g->shared_from( *critter_ptr );
-            pc.last_target_pos = cata::nullopt;
         } else {
             pc.last_target.reset();
-            pc.last_target_pos = dst;
         }
     };
 
@@ -1212,7 +1237,9 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
         } else if( mode == TARGET_MODE_TURRET ) {
             line_number = draw_turret_aim( pc, w_target, line_number, dst );
         } else if( mode == TARGET_MODE_THROW ) {
-            line_number = draw_throw_aim( pc, w_target, line_number, relevant, dst );
+            line_number = draw_throw_aim( pc, w_target, line_number, relevant, dst, false );
+        } else if( mode == TARGET_MODE_THROW_BLIND ) {
+            line_number = draw_throw_aim( pc, w_target, line_number, relevant, dst, true );
         }
 
         wrefresh( w_target );
@@ -1326,9 +1353,10 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
         } else if( action == "AIMED_SHOT" || action == "CAREFUL_SHOT" || action == "PRECISE_SHOT" ) {
             // This action basically means "FIRE" as well, the actual firing may be delayed
             // through aiming, but there is usually no means to stop it. Therefore we query here.
-            if( !confirm_non_enemy_target( dst ) ) {
+            if( !confirm_non_enemy_target( dst ) || dst == src ) {
                 continue;
             }
+
             recoil_pc = pc.recoil;
             recoil_pos = dst;
             int aim_threshold;
@@ -1364,11 +1392,10 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
                 pc.assign_activity( activity_id( "ACT_AIM" ), 0, 0 );
                 pc.activity.str_values.push_back( action );
                 pc.view_offset = old_offset;
-                set_last_target( dst );
                 return empty_result;
             }
         } else if( action == "FIRE" ) {
-            if( !confirm_non_enemy_target( dst ) ) {
+            if( !confirm_non_enemy_target( dst ) || dst == src ) {
                 continue;
             }
             target = find_target( t, dst );
@@ -1468,7 +1495,7 @@ int time_to_fire( const Character &p, const itype &firingt )
         int reduction; // the reduction in time given per skill level.
     };
 
-    static std::map<skill_id, time_info_t> const map {
+    static const std::map<skill_id, time_info_t> map {
         {skill_id {"pistol"},   {10, 80,  10}},
         {skill_id {"shotgun"},  {70, 150, 25}},
         {skill_id {"smg"},      {20, 80,  10}},
@@ -1480,11 +1507,11 @@ int time_to_fire( const Character &p, const itype &firingt )
     };
 
     const skill_id &skill_used = firingt.gun->skill_used;
-    auto const it = map.find( skill_used );
+    const auto it = map.find( skill_used );
     // TODO: maybe JSON-ize this in some way? Probably as part of the skill class.
     static const time_info_t default_info{ 50, 220, 25 };
 
-    time_info_t const &info = ( it == map.end() ) ? default_info : it->second;
+    const time_info_t &info = ( it == map.end() ) ? default_info : it->second;
     return std::max( info.min_time, info.base - info.reduction * p.get_skill_level( skill_used ) );
 }
 
@@ -1540,11 +1567,12 @@ void make_gun_sound_effect( player &p, bool burst, item *weapon )
 {
     const auto data = weapon->gun_noise( burst );
     if( data.volume > 0 ) {
-        sounds::sound( p.pos(), data.volume, data.sound );
+        sounds::sound( p.pos(), data.volume, sounds::sound_t::combat,
+                       data.sound.empty() ? _( "Bang!" ) : data.sound );
     }
 }
 
-item::sound_data item::gun_noise( bool const burst ) const
+item::sound_data item::gun_noise( const bool burst ) const
 {
     if( !is_gun() ) {
         return { 0, "" };
@@ -1623,7 +1651,7 @@ item::sound_data item::gun_noise( bool const burst ) const
 static bool is_driving( const player &p )
 {
     const optional_vpart_position vp = g->m.veh_at( p.pos() );
-    return vp && vp->vehicle().velocity != 0 && vp->vehicle().player_in_control( p );
+    return vp && vp->vehicle().is_moving() && vp->vehicle().player_in_control( p );
 }
 
 static double dispersion_from_skill( double skill, double weapon_dispersion )
