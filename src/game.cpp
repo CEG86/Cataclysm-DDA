@@ -819,7 +819,7 @@ bool game::start_game()
         gamemode.reset( new special_game() );
     }
 
-    seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    seed = rng_bits();
     new_game = true;
     start_calendar();
     nextweather = calendar::turn;
