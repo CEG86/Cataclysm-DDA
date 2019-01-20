@@ -1,15 +1,15 @@
 #include "weather_gen.h"
 
+#include <cmath>
+#include <cstdlib>
+#include <fstream>
+
 #include "calendar.h"
 #include "enums.h"
 #include "json.h"
 #include "rng.h"
 #include "simplexnoise.h"
 #include "weather.h"
-
-#include <cmath>
-#include <cstdlib>
-#include <fstream>
 
 namespace
 {

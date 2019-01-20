@@ -1,5 +1,7 @@
 #include "iuse_software_kitten.h"
 
+#include <cstdlib>  // Needed for rand()
+
 #include "cursesdef.h"
 #include "input.h"
 #include "output.h"

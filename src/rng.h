@@ -2,10 +2,10 @@
 #ifndef RNG_H
 #define RNG_H
 
-#include "optional.h"
-
 #include <array>
 #include <functional>
+
+#include "optional.h"
 
 // All PRNG functions use an engine, see the C++11 <random> header
 // By default, that engine is seeded by time on first call to such a function.
