@@ -64,7 +64,8 @@ enum npc_attitude : int {
     NPCATT_HEAL,  // Get to the player and heal them
 
     NPCATT_LEGACY_4,
-    NPCATT_LEGACY_5
+    NPCATT_LEGACY_5,
+    NPCATT_END
 };
 
 std::string npc_attitude_name( npc_attitude );
@@ -179,6 +180,16 @@ enum combat_engagement {
     ENGAGE_ALL,
     ENGAGE_NO_MOVE
 };
+const std::unordered_map<std::string, combat_engagement> combat_engagement_strs = { {
+        { "ENGAGE_NONE", ENGAGE_NONE },
+        { "ENGAGE_CLOSE", ENGAGE_CLOSE },
+        { "ENGAGE_WEAK", ENGAGE_WEAK },
+        { "ENGAGE_HIT", ENGAGE_HIT },
+        { "ENGAGE_ALL", ENGAGE_ALL },
+        { "ENGAGE_NO_MOVE", ENGAGE_NO_MOVE }
+    }
+};
+
 
 enum aim_rule {
     // Aim some
@@ -190,21 +201,47 @@ enum aim_rule {
     // If you can't aim, don't shoot
     AIM_STRICTLY_PRECISE
 };
+const std::unordered_map<std::string, aim_rule> aim_rule_strs = { {
+        { "AIM_WHEN_CONVENIENT", AIM_WHEN_CONVENIENT },
+        { "AIM_SPRAY", AIM_SPRAY },
+        { "AIM_PRECISE", AIM_PRECISE },
+        { "AIM_STRICTLY_PRECISE", AIM_STRICTLY_PRECISE }
+    }
+};
+
+enum class ally_rule {
+    DEFAULT = 0,
+    use_guns = 1,
+    use_grenades = 2,
+    use_silent = 4,
+    avoid_friendly_fire = 8,
+    allow_pick_up = 16,
+    allow_bash = 32,
+    allow_sleep = 64,
+    allow_complain = 128,
+    allow_pulp = 256,
+    close_doors = 512,
+    avoid_combat = 1024
+};
+const std::unordered_map<std::string, ally_rule> ally_rule_strs = { {
+        { "use_guns", ally_rule::use_guns },
+        { "use_grenades", ally_rule::use_grenades },
+        { "use_silent", ally_rule::use_silent },
+        { "avoid_friendly_fire", ally_rule::avoid_friendly_fire },
+        { "allow_pick_up", ally_rule::allow_pick_up },
+        { "allow_bash", ally_rule::allow_bash },
+        { "allow_sleep", ally_rule::allow_sleep },
+        { "allow_complain", ally_rule::allow_complain },
+        { "allow_pulp", ally_rule::allow_pulp },
+        { "close_doors", ally_rule::close_doors },
+        { "avoid_combat", ally_rule::avoid_combat }
+    }
+};
 
 struct npc_follower_rules {
     combat_engagement engagement;
     aim_rule aim = AIM_WHEN_CONVENIENT;
-    bool use_guns;
-    bool use_grenades;
-    bool use_silent;
-
-    bool allow_pick_up;
-    bool allow_bash;
-    bool allow_sleep;
-    bool allow_complain;
-    bool allow_pulp;
-
-    bool close_doors;
+    ally_rule flags;
 
     pimpl<auto_pickup> pickup_whitelist;
 
@@ -212,6 +249,12 @@ struct npc_follower_rules {
 
     void serialize( JsonOut &jsout ) const;
     void deserialize( JsonIn &jsin );
+
+    bool has_flag( ally_rule test ) const;
+    void set_flag( ally_rule setit );
+    void clear_flag( ally_rule clearit );
+    void toggle_flag( ally_rule toggle );
+
 };
 
 // Data relevant only for this action
@@ -488,6 +531,7 @@ class npc : public player
          */
         void add_new_mission( mission *miss );
         skill_id best_skill() const;
+        int best_skill_level() const;
         void starting_weapon( const npc_class_id &type );
 
         // Save & load
@@ -627,7 +671,6 @@ class npc : public player
         /** rates how dangerous a target is from 0 (harmless) to 1 (max danger) */
         float evaluate_enemy( const Creature &target ) const;
 
-        void choose_target();
         void assess_danger();
         // Functions which choose an action for a particular goal
         npc_action method_of_fleeing();
@@ -759,6 +802,8 @@ class npc : public player
 
         std::string extended_description() const override;
 
+        std::pair<std::string, nc_color> hp_description() const;
+
         // Note: NPCs use a different speed rating than players
         // Because they can't run yet
         float speed_rating() const override;
@@ -817,6 +862,7 @@ class npc : public player
         int last_seen_player_turn; // Timeout to forgetting
         tripoint wanted_item_pos; // The square containing an item we want
         tripoint guard_pos;  // These are the local coordinates that a guard will return to inside of their goal tripoint
+        cata::optional<tripoint> flee_from_pos; // run away from here if no enemies visible
         /**
          * Global overmap terrain coordinate, where we want to get to
          * if no goal exist, this is no_goal_point.
@@ -872,7 +918,9 @@ class npc : public player
         void on_load();
 
         /// Set up (start) a companion mission.
-        void set_companion_mission( npc &p, const std::string &id );
+        void set_companion_mission( npc &p, const std::string &mission_id );
+        void set_companion_mission( const tripoint &omt_pos, const std::string &role_id,
+                                    const std::string &mission_id );
         /// Unset a companion mission. Precondition: `!has_companion_mission()`
         void reset_companion_mission();
         bool has_companion_mission() const;

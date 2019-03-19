@@ -30,6 +30,7 @@
 #include "mtype.h"
 #include "name.h"
 #include "npc.h"
+#include "optional.h"
 #include "options.h"
 #include "output.h"
 #include "overmap_connection.h"
@@ -156,6 +157,7 @@ t_regional_settings_map region_settings_map;
 namespace
 {
 
+generic_factory<overmap_land_use_code> land_use_codes( "overmap land use codes" );
 generic_factory<oter_type_t> terrain_types( "overmap terrain type" );
 generic_factory<oter_t> terrains( "overmap terrain" );
 generic_factory<overmap_special> specials( "overmap special" );
@@ -171,6 +173,18 @@ static const std::map<std::string, oter_flags> oter_flags_map = {
     { "LINEAR",         line_drawing   },
     { "SUBWAY",         subway_connection }
 };
+
+template<>
+const overmap_land_use_code &overmap_land_use_code_id::obj() const
+{
+    return land_use_codes.obj( *this );
+}
+
+template<>
+bool overmap_land_use_code_id::is_valid() const
+{
+    return land_use_codes.is_valid( *this );
+}
 
 template<>
 const overmap_special &overmap_special_id::obj() const
@@ -303,6 +317,53 @@ void set_oter_ids()   // @todo: fixme constify
     ot_forest_thick = oter_id( "forest_thick" );
     ot_forest_water = oter_id( "forest_water" );
     ot_river_center = oter_id( "river_center" );
+}
+
+void overmap_land_use_code::load( JsonObject &jo, const std::string &src )
+{
+    const bool strict = src == "dda";
+    assign( jo, "land_use_code", land_use_code, strict );
+    assign( jo, "name", name, strict );
+    assign( jo, "detailed_definition", detailed_definition, strict );
+    assign( jo, "sym", sym, strict );
+    assign( jo, "color", color, strict );
+}
+
+void overmap_land_use_code::finalize()
+{
+
+}
+
+void overmap_land_use_code::check() const
+{
+
+}
+
+void overmap_land_use_codes::load( JsonObject &jo, const std::string &src )
+{
+    land_use_codes.load( jo, src );
+}
+
+void overmap_land_use_codes::finalize()
+{
+    for( const auto &elem : land_use_codes.get_all() ) {
+        const_cast<overmap_land_use_code &>( elem ).finalize(); // This cast is ugly, but safe.
+    }
+}
+
+void overmap_land_use_codes::check_consistency()
+{
+    land_use_codes.check();
+}
+
+void overmap_land_use_codes::reset()
+{
+    land_use_codes.reset();
+}
+
+const std::vector<overmap_land_use_code> &overmap_land_use_codes::get_all()
+{
+    return land_use_codes.get_all();
 }
 
 void overmap_specials::load( JsonObject &jo, const std::string &src )
@@ -452,6 +513,7 @@ void oter_type_t::load( JsonObject &jo, const std::string &src )
     assign( jo, "mondensity", mondensity, strict );
     assign( jo, "spawns", static_spawns, strict );
     assign( jo, "color", color, strict );
+    assign( jo, "land_use_code", land_use_code, strict );
 
     const typed_flag_reader<decltype( oter_flags_map )> flag_reader{ oter_flags_map, "invalid overmap terrain flag" };
     optional( jo, was_loaded, "flags", flags, flag_reader );
@@ -538,19 +600,23 @@ oter_t::oter_t() : oter_t( oter_type_t::null_type ) {}
 oter_t::oter_t( const oter_type_t &type ) :
     type( &type ),
     id( type.id.str() ),
-    sym( type.sym ) {}
+    sym( type.sym ),
+    sym_alt( type.land_use_code ? type.land_use_code->sym : sym ) {}
 
 oter_t::oter_t( const oter_type_t &type, om_direction::type dir ) :
     type( &type ),
     id( type.id.str() + "_" + om_direction::id( dir ) ),
     dir( dir ),
     sym( om_direction::rotate_symbol( type.sym, dir ) ),
+    sym_alt( om_direction::rotate_symbol( type.land_use_code ? type.land_use_code->sym : type.sym,
+                                          dir ) ),
     line( om_lines::from_dir( dir ) ) {}
 
 oter_t::oter_t( const oter_type_t &type, size_t line ) :
     type( &type ),
     id( type.id.str() + om_lines::all[line].suffix ),
     sym( om_lines::all[line].sym ),
+    sym_alt( om_lines::all[line].sym ),
     line( line ) {}
 
 std::string oter_t::get_mapgen_id() const
@@ -873,6 +939,47 @@ void overmap::populate( overmap_special_batch &enabled_specials )
 void overmap::populate()
 {
     overmap_special_batch enabled_specials = overmap_specials::get_default_batch( loc );
+
+    const bool should_blacklist = !settings.overmap_feature_flag.blacklist.empty();
+    const bool should_whitelist = !settings.overmap_feature_flag.whitelist.empty();
+
+    // If this region's settings has blacklisted or whitelisted overmap feature flags, let's
+    // filter our default batch.
+
+    // Remove any items that have a flag that is present in the blacklist.
+    if( should_blacklist ) {
+        for( auto it = enabled_specials.begin(); it != enabled_specials.end(); ) {
+            std::vector<std::string> common;
+            std::set_intersection( settings.overmap_feature_flag.blacklist.begin(),
+                                   settings.overmap_feature_flag.blacklist.end(),
+                                   it->special_details->flags.begin(), it->special_details->flags.end(),
+                                   std::back_inserter( common )
+                                 );
+            if( !common.empty() ) {
+                it = enabled_specials.erase( it );
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    // Remove any items which do not have any of the flags from the whitelist.
+    if( should_whitelist ) {
+        for( auto it = enabled_specials.begin(); it != enabled_specials.end(); ) {
+            std::vector<std::string> common;
+            std::set_intersection( settings.overmap_feature_flag.whitelist.begin(),
+                                   settings.overmap_feature_flag.whitelist.end(),
+                                   it->special_details->flags.begin(), it->special_details->flags.end(),
+                                   std::back_inserter( common )
+                                 );
+            if( common.empty() ) {
+                it = enabled_specials.erase( it );
+            } else {
+                ++it;
+            }
+        }
+    }
+
     populate( enabled_specials );
 }
 
@@ -2080,9 +2187,7 @@ void overmap::place_forest_trails()
 
             // ...and then add our random points.
             int random_point_count = 0;
-            static std::default_random_engine eng(
-                std::chrono::system_clock::now().time_since_epoch().count() );
-            std::shuffle( forest_points.begin(), forest_points.end(), eng );
+            std::shuffle( forest_points.begin(), forest_points.end(), rng_get_engine() );
             for( auto &random_point : forest_points ) {
                 if( random_point_count >= max_random_points ) {
                     break;
@@ -2138,10 +2243,11 @@ void overmap::place_forest_trailheads()
     // 3. we're within trailhead_road_distance from an existing road
     // 4. rng rolls a success for our trailhead_chance from the configuration
 
-    const auto trailhead_close_to_road = [&]( const tripoint trailhead ) {
+    const auto trailhead_close_to_road = [&]( const tripoint & trailhead ) {
         bool close = false;
-        for( point nearby_point : closest_points_first( settings.forest_trail.trailhead_road_distance,
-                point( trailhead.x, trailhead.y ) ) ) {
+        for( const point &nearby_point : closest_points_first(
+                 settings.forest_trail.trailhead_road_distance,
+                 point( trailhead.x, trailhead.y ) ) ) {
             if( check_ot_subtype( "road", nearby_point.x, nearby_point.y, 0 ) ) {
                 close = true;
             }
@@ -2149,8 +2255,8 @@ void overmap::place_forest_trailheads()
         return close;
     };
 
-    const auto try_place_trailhead = [&]( const tripoint trailhead, const tripoint road,
-    const std::string suffix ) {
+    const auto try_place_trailhead = [&]( const tripoint & trailhead, const tripoint & road,
+    const std::string & suffix ) {
         oter_id &oter_potential_trailhead = ter( trailhead );
         oter_id &oter_potential_road = ter( road );
         if( oter_potential_trailhead == "field" && oter_potential_road == "field" &&
@@ -2518,9 +2624,7 @@ bool overmap::build_lab( int x, int y, int z, int s, std::vector<point> *lab_tra
         }
     }
     if( generate_stairs && !generated_lab.empty() ) {
-        static auto eng = std::default_random_engine(
-                              std::chrono::system_clock::now().time_since_epoch().count() );
-        std::shuffle( generated_lab.begin(), generated_lab.end(), eng );
+        std::shuffle( generated_lab.begin(), generated_lab.end(), rng_get_engine() );
 
         // we want a spot where labs are above, but we'll settle for the last element if necessary.
         point p;
@@ -3330,9 +3434,7 @@ om_direction::type overmap::random_special_rotation( const overmap_special &spec
         }
     }
     // Pick first valid rotation at random.
-    static auto eng = std::default_random_engine(
-                          std::chrono::system_clock::now().time_since_epoch().count() );
-    std::shuffle( first, last, eng );
+    std::shuffle( first, last, rng_get_engine() );
     const auto rotation = std::find_if( first, last, [&]( om_direction::type elem ) {
         return can_place_special( special, p, elem, must_be_unexplored );
     } );
@@ -3449,9 +3551,7 @@ om_special_sectors get_sectors( const int sector_width )
             res.emplace_back( x, y );
         }
     }
-    static auto eng = std::default_random_engine(
-                          std::chrono::system_clock::now().time_since_epoch().count() );
-    std::shuffle( res.begin(), res.end(), eng );
+    std::shuffle( res.begin(), res.end(), rng_get_engine() );
     return { res, sector_width };
 }
 
@@ -3465,9 +3565,7 @@ bool overmap::place_special_attempt( overmap_special_batch &enabled_specials,
     const tripoint p( rng( x, x + sector_width - 1 ), rng( y, y + sector_width - 1 ), 0 );
     const city &nearest_city = get_nearest_city( p );
 
-    static auto eng = std::default_random_engine(
-                          std::chrono::system_clock::now().time_since_epoch().count() );
-    std::shuffle( enabled_specials.begin(), enabled_specials.end(), eng );
+    std::shuffle( enabled_specials.begin(), enabled_specials.end(), rng_get_engine() );
     for( auto iter = enabled_specials.begin(); iter != enabled_specials.end(); ++iter ) {
         const auto &special = *iter->special_details;
         // If we haven't finished placing minimum instances of all specials,
@@ -3501,9 +3599,7 @@ void overmap::place_specials_pass( overmap_special_batch &enabled_specials,
                                    om_special_sectors &sectors, const bool place_optional, const bool must_be_unexplored )
 {
     // Walk over sectors in random order, to minimize "clumping".
-    static auto eng = std::default_random_engine(
-                          std::chrono::system_clock::now().time_since_epoch().count() );
-    std::shuffle( sectors.sectors.begin(), sectors.sectors.end(), eng );
+    std::shuffle( sectors.sectors.begin(), sectors.sectors.end(), rng_get_engine() );
     for( auto it = sectors.sectors.begin(); it != sectors.sectors.end(); ) {
         const size_t attempts = 10;
         bool placed = false;
@@ -3590,9 +3686,7 @@ void overmap::place_specials( overmap_special_batch &enabled_specials )
             }
         }
         if( !nearest_candidates.empty() ) {
-            static auto eng = std::default_random_engine(
-                                  std::chrono::system_clock::now().time_since_epoch().count() );
-            std::shuffle( nearest_candidates.begin(), nearest_candidates.end(), eng );
+            std::shuffle( nearest_candidates.begin(), nearest_candidates.end(), rng_get_engine() );
             point new_om_addr = nearest_candidates.front();
             overmap_buffer.create_custom_overmap( new_om_addr.x, new_om_addr.y, custom_overmap_specials );
         } else {
@@ -3860,14 +3954,14 @@ void overmap::add_mon_group( const mongroup &group )
     }
 }
 
-void overmap::for_each_npc( const std::function<void( npc & )> callback )
+void overmap::for_each_npc( const std::function<void( npc & )> &callback )
 {
     for( auto &guy : npcs ) {
         callback( *guy );
     }
 }
 
-void overmap::for_each_npc( const std::function<void( const npc & )> callback ) const
+void overmap::for_each_npc( const std::function<void( const npc & )> &callback ) const
 {
     for( auto &guy : npcs ) {
         callback( *guy );
@@ -3882,6 +3976,16 @@ std::shared_ptr<npc> overmap::find_npc( const int id ) const
         }
     }
     return nullptr;
+}
+
+cata::optional<basecamp *> overmap::find_camp( const int x, const int y ) const
+{
+    for( const auto &v : camps ) {
+        if( v->camp_omt_pos().x == x && v->camp_omt_pos().y == y ) {
+            return v;
+        }
+    }
+    return cata::nullopt;
 }
 
 bool overmap::is_omt_generated( const tripoint &loc ) const

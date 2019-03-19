@@ -30,9 +30,14 @@ const species_id FUNGUS( "FUNGUS" );
 const efftype_id effect_bouldering( "bouldering" );
 const efftype_id effect_docile( "docile" );
 const efftype_id effect_downed( "downed" );
+const efftype_id effect_no_sight( "no_sight" );
 const efftype_id effect_pacified( "pacified" );
 const efftype_id effect_pushed( "pushed" );
 const efftype_id effect_stunned( "stunned" );
+
+const species_id ZOMBIE( "ZOMBIE" );
+const species_id BLOB( "BLOB" );
+const species_id ROBOT( "ROBOT" );
 
 bool monster::wander()
 {
@@ -606,6 +611,12 @@ void monster::move()
         // Otherwise weird things happen
         destination.z = posz();
     }
+    // toggle facing direction for sdl flip
+    if( destination.x < pos().x ) {
+        facing = FD_LEFT;
+    } else {
+        facing = FD_RIGHT;
+    }
 
     tripoint next_step;
     const bool staggers = has_flag( MF_STUMBLES );
@@ -765,8 +776,16 @@ void monster::footsteps( const tripoint &p )
     if( volume == 0 ) {
         return;
     }
+    std::string footstep = "footsteps.";
+    if( type->in_species( BLOB ) ) {
+        footstep = "plop.";
+    } else if( type->in_species( ZOMBIE ) ) {
+        footstep = "shuffling.";
+    } else if( type->in_species( ROBOT ) ) {
+        footstep = "mechanical whirring.";
+    }
     int dist = rl_dist( p, g->u.pos() );
-    sounds::add_footstep( p, volume, dist, this );
+    sounds::add_footstep( p, volume, dist, this, footstep );
     return;
 }
 
@@ -1142,6 +1161,13 @@ bool monster::move_to( const tripoint &p, bool force, const float stagger_adjust
     } else if( has_effect( effect_bouldering ) ) {
         remove_effect( effect_bouldering );
     }
+
+    if( g->m.has_flag_ter_or_furn( TFLAG_NO_SIGHT, p ) && on_ground ) {
+        add_effect( effect_no_sight, 1_turns, num_bp, true );
+    } else if( has_effect( effect_no_sight ) ) {
+        remove_effect( effect_no_sight );
+    }
+
     g->m.creature_on_trap( *this );
     if( !will_be_water && ( has_flag( MF_DIGS ) || has_flag( MF_CAN_DIG ) ) ) {
         underwater = g->m.has_flag( "DIGGABLE", pos() );

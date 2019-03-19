@@ -28,6 +28,7 @@ enum talk_trial_type : unsigned char {
     TALK_TRIAL_LIE, // Straight up lying
     TALK_TRIAL_PERSUADE, // Convince them
     TALK_TRIAL_INTIMIDATE, // Physical intimidation
+    TALK_TRIAL_CONDITION, // Some other condition
     NUM_TALK_TRIALS
 };
 
@@ -52,6 +53,7 @@ using trial_mod = std::pair<std::string, int>;
 struct talk_trial {
     talk_trial_type type = TALK_TRIAL_NONE;
     int difficulty = 0;
+    std::function<bool( const dialogue & )> condition;
 
     int calc_chance( const dialogue &d ) const;
     /**
@@ -90,18 +92,24 @@ struct talk_effect_fun_t {
         talk_effect_fun_t( talkfunction_ptr effect );
         talk_effect_fun_t( const std::function<void( npc & )> effect );
         void set_companion_mission( const std::string &role_id );
-        void set_u_add_permanent_effect( const std::string &new_effect );
-        void set_u_add_effect( const std::string &new_effect, const time_duration &duration );
-        void set_npc_add_permanent_effect( const std::string &new_effect );
-        void set_npc_add_effect( const std::string &new_effect, const time_duration &duration );
-        void set_u_add_trait( const std::string &new_trait );
-        void set_npc_add_trait( const std::string &new_trait );
+        void set_add_effect( bool is_u, const std::string &new_effect,
+                             const time_duration &duration, bool permanent = true );
+        void set_remove_effect( bool is_u, const std::string &new_effect );
+        void set_add_trait( bool is_u, const std::string &new_trait );
+        void set_remove_trait( bool is_u, const std::string &old_trait );
         void set_u_buy_item( const std::string &new_trait, int cost, int count,
                              const std::string &container_name );
         void set_u_spend_cash( int amount );
         void set_u_sell_item( const std::string &new_trait, int cost, int count );
+        void set_consume_item( bool is_u, const std::string &new_trait, int count );
         void set_npc_change_faction( const std::string &faction_name );
+        void set_npc_change_class( const std::string &faction_class );
         void set_change_faction_rep( int amount );
+        void set_add_debt( const std::vector<trial_mod> &debt_modifiers );
+        void set_toggle_npc_rule( const std::string &rule );
+        void set_npc_engagement_rule( const std::string &setting );
+        void set_npc_aim_rule( const std::string &setting );
+
         void operator()( const dialogue &d ) const {
             if( !function ) {
                 return;
@@ -116,9 +124,15 @@ struct talk_effect_fun_t {
  */
 struct talk_effect_t {
         /**
-          * How (if at all) the NPCs opinion of the player character (@ref npc::op_of_u) will change.
+          * How (if at all) the NPCs opinion of the player character (@ref npc::op_of_u)
+          * will change.
           */
         npc_opinion opinion;
+        /**
+          * How (if at all) the NPCs opinion of the player character (@ref npc::op_of_u)
+          * will change.  These values are divisors of the mission value.
+          */
+        npc_opinion mission_opinion;
         /**
           * Topic to switch to. TALK_DONE ends the talking, TALK_NONE keeps the current topic.
           */
@@ -163,6 +177,13 @@ struct talk_response {
      * displayed.
      */
     std::string text;
+    /*
+     * Optional responses from a true/false test that defaults to true.
+     */
+    std::string truetext;
+    std::string falsetext;
+    std::function<bool( const dialogue & )> truefalse_condition;
+
     talk_trial trial;
     /**
      * The following values are forwarded to the chatbin of the NPC (see @ref npc_chatbin).
@@ -177,7 +198,7 @@ struct talk_response {
     talk_data create_option_line( const dialogue &d, char letter );
     std::set<dialogue_consequence> get_consequences( const dialogue &d ) const;
 
-    talk_response() = default;
+    talk_response();
     talk_response( JsonObject );
 };
 
@@ -297,6 +318,9 @@ struct dynamic_line_t {
         }
 };
 
+// the truly awful declaration for the conditional_t loading helper_function
+void read_dialogue_condition( JsonObject &jo, std::function<bool( const dialogue & )> &condition,
+                              bool default_val );
 /**
  * A condition for a response spoken by the player.
  * This struct only adds the constructors which will load the data from json

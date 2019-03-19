@@ -137,7 +137,7 @@ void character_edit_menu()
 
     enum { D_NAME, D_SKILLS, D_STATS, D_ITEMS, D_DELETE_ITEMS, D_ITEM_WORN,
            D_HP, D_MORALE, D_PAIN, D_NEEDS, D_HEALTHY, D_STATUS, D_MISSION_ADD, D_MISSION_EDIT,
-           D_TELE, D_MUTATE, D_CLASS
+           D_TELE, D_MUTATE, D_CLASS, D_ATTITUDE
          };
     nmenu.addentry( D_NAME, true, 'N', "%s", _( "Edit [N]ame" ) );
     nmenu.addentry( D_SKILLS, true, 's', "%s", _( "Edit [s]kills" ) );
@@ -158,6 +158,7 @@ void character_edit_menu()
     if( p.is_npc() ) {
         nmenu.addentry( D_MISSION_ADD, true, 'm', "%s", _( "Add [m]ission" ) );
         nmenu.addentry( D_CLASS, true, 'c', "%s", _( "Randomize with [c]lass" ) );
+        nmenu.addentry( D_ATTITUDE, true, 'A', "%s", _( "Set [A]ttitude" ) );
     }
     nmenu.query();
     switch( nmenu.ret ) {
@@ -432,6 +433,27 @@ void character_edit_menu()
                 np->randomize( ids[ classes.ret ] );
             }
         }
+        break;
+        case D_ATTITUDE: {
+            uilist attitudes_ui;
+            attitudes_ui.text = _( "Choose new attitude" );
+            std::vector<npc_attitude> attitudes;
+            for( int i = NPCATT_NULL; i < NPCATT_END; i++ ) {
+                npc_attitude att_id = static_cast<npc_attitude>( i );
+                std::string att_name = npc_attitude_name( att_id );
+                attitudes.push_back( att_id );
+                if( att_name == _( "Unknown attitude" ) ) {
+                    continue;
+                }
+
+                attitudes_ui.addentry( i, true, -1, att_name );
+            }
+
+            attitudes_ui.query();
+            if( attitudes_ui.ret < static_cast<int>( attitudes.size() ) && attitudes_ui.ret >= 0 ) {
+                np->set_attitude( attitudes[attitudes_ui.ret] );
+            }
+        }
     }
 }
 
@@ -630,7 +652,11 @@ void draw_benchmark( const int max_difference )
                                "\n| USE_TILES |  RENDERER | FRAMEBUFFER_ACCEL | USE_COLOR_MODULATED_TEXTURES | FPS |" <<
                                "\n|:---:|:---:|:---:|:---:|:---:|\n| " <<
                                get_option<bool>( "USE_TILES" ) << " | " <<
+#ifndef __ANDROID__
                                get_option<std::string>( "RENDERER" ) << " | " <<
+#else
+                               get_option<bool>( "SOFTWARE_RENDERING" ) << " | " <<
+#endif
                                get_option<bool>( "FRAMEBUFFER_ACCEL" ) << " | " <<
                                get_option<bool>( "USE_COLOR_MODULATED_TEXTURES" ) << " | " <<
                                int( 1000.0 * draw_counter / ( double )difference ) << " |\n";

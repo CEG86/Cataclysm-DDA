@@ -63,6 +63,13 @@ enum fatigue_levels {
     EXHAUSTED = 575,
     MASSIVE_FATIGUE = 1000
 };
+const std::unordered_map<std::string, fatigue_levels> fatigue_level_strs = { {
+        { "TIRED", TIRED },
+        { "DEAD_TIRED", DEAD_TIRED },
+        { "EXHAUSTED", EXHAUSTED },
+        { "MASSIVE_FATIGUE", MASSIVE_FATIGUE }
+    }
+};
 
 // Sleep deprivation is defined in minutes, and although most calculations scale linearly,
 // maluses are bestowed only upon reaching the tiers defined below.
@@ -213,6 +220,9 @@ class Character : public Creature, public visitable<Character>
         virtual int get_hunger() const;
         virtual int get_starvation() const;
         virtual int get_thirst() const;
+        virtual std::pair<std::string, nc_color> get_thirst_description() const;
+        virtual std::pair<std::string, nc_color> get_hunger_description() const;
+        virtual std::pair<std::string, nc_color> get_fatigue_description() const;
         virtual int get_fatigue() const;
         virtual int get_sleep_deprivation() const;
         virtual int get_stomach_food() const;
@@ -383,6 +393,9 @@ class Character : public Creature, public visitable<Character>
     private:
         /** Retrieves a stat mod of a mutation. */
         int get_mod( const trait_id &mut, std::string arg ) const;
+        /** Applies skill-based boosts to stats **/
+        void apply_skill_boost();
+
     protected:
         /** Applies stat mods to character. */
         void apply_mods( const trait_id &mut, bool add_remove );

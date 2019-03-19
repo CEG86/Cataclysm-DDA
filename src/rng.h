@@ -4,6 +4,7 @@
 
 #include <array>
 #include <functional>
+#include <random>
 
 #include "optional.h"
 
@@ -14,6 +15,7 @@
 void rng_set_engine_seed( uintmax_t seed );
 
 uintmax_t rng_bits();
+
 long rng( long val1, long val2 );
 double rng_float( double val1, double val2 );
 bool one_in( long chance );

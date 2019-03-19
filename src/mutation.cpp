@@ -288,6 +288,8 @@ void player::activate_mutation( const trait_id &mut )
     const mutation_branch &mdata = mut.obj();
     auto &tdata = my_mutations[mut];
     int cost = mdata.cost;
+    // Preserve the fake weapon used to initiate ranged mutation firing
+    static item mut_ranged( weapon );
     // You can take yourself halfway to Near Death levels of hunger/thirst.
     // Fatigue can go to Exhausted.
     if( ( mdata.hunger && get_hunger() + get_starvation() >= 700 ) || ( mdata.thirst &&
@@ -488,6 +490,13 @@ void player::activate_mutation( const trait_id &mut )
         add_msg_if_player( mdata.spawn_item_message() );
         tdata.powered = false;
         return;
+    } else if( !mdata.ranged_mutation.empty() ) {
+        mut_ranged = item( mdata.ranged_mutation );
+        add_msg_if_player( mdata.ranged_mutation_message() );
+        g->refresh_all();
+        g->plfire( mut_ranged );
+        tdata.powered = false;
+        return;
     }
 }
 
@@ -559,8 +568,8 @@ void player::mutate()
 
     // For each mutation...
     for( auto &traits_iter : mutation_branch::get_all() ) {
-        const auto &base_mutation = traits_iter.first;
-        const auto &base_mdata = traits_iter.second;
+        const auto &base_mutation = traits_iter.id;
+        const auto &base_mdata = traits_iter;
         bool thresh_save = base_mdata.threshold;
         bool prof_save = base_mdata.profession;
         bool purify_save = base_mdata.purifiable;
@@ -649,8 +658,8 @@ void player::mutate()
         if( cat.empty() ) {
             // Pull the full list
             for( auto &traits_iter : mutation_branch::get_all() ) {
-                if( traits_iter.second.valid ) {
-                    valid.push_back( traits_iter.first );
+                if( traits_iter.valid ) {
+                    valid.push_back( traits_iter.id );
                 }
             }
         } else {
@@ -1019,13 +1028,13 @@ void player::remove_mutation( const trait_id &mut )
         //Check each mutation until we reach the end or find a trait to revert to
         for( auto &iter : mutation_branch::get_all() ) {
             //See if it's in our list of base traits but not active
-            if( has_base_trait( iter.first ) && !has_trait( iter.first ) ) {
+            if( has_base_trait( iter.id ) && !has_trait( iter.id ) ) {
                 //See if that base trait cancels the mutation we are using
-                std::vector<trait_id> traitcheck = iter.second.cancels;
+                std::vector<trait_id> traitcheck = iter.cancels;
                 if( !traitcheck.empty() ) {
                     for( size_t j = 0; !replacing && j < traitcheck.size(); j++ ) {
                         if( traitcheck[j] == mut ) {
-                            replacing = ( iter.first );
+                            replacing = ( iter.id );
                         }
                     }
                 }
@@ -1041,13 +1050,13 @@ void player::remove_mutation( const trait_id &mut )
         //Check each mutation until we reach the end or find a trait to revert to
         for( auto &iter : mutation_branch::get_all() ) {
             //See if it's in our list of base traits but not active
-            if( has_base_trait( iter.first ) && !has_trait( iter.first ) ) {
+            if( has_base_trait( iter.id ) && !has_trait( iter.id ) ) {
                 //See if that base trait cancels the mutation we are using
-                std::vector<trait_id> traitcheck = iter.second.cancels;
+                std::vector<trait_id> traitcheck = iter.cancels;
                 if( !traitcheck.empty() ) {
                     for( size_t j = 0; !replacing2 && j < traitcheck.size(); j++ ) {
-                        if( traitcheck[j] == mut && ( iter.first ) != replacing ) {
-                            replacing2 = ( iter.first );
+                        if( traitcheck[j] == mut && ( iter.id ) != replacing ) {
+                            replacing2 = ( iter.id );
                         }
                     }
                 }

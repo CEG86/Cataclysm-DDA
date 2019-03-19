@@ -359,7 +359,6 @@ void options_manager::add( const std::string &sNameIn, const std::string &sPageI
 void options_manager::cOpt::setPrerequisites( const std::string &sOption,
         const std::vector<std::string> &sAllowedValues )
 {
-    static const std::vector<std::string> &sSupportedTypes = { "bool", "string", "string_select", "string_input" };
     const bool hasOption = get_options().has_option( sOption );
     if( !hasOption ) {
         debugmsg( "setPrerequisite: unknown option %s", sType.c_str() );
@@ -369,7 +368,7 @@ void options_manager::cOpt::setPrerequisites( const std::string &sOption,
     const cOpt &existingOption = get_options().get_option( sOption );
     const std::string &existingOptionType = existingOption.getType();
     bool isOfSupportType = false;
-    for( const std::string &sSupportedType : sSupportedTypes ) {
+    for( const std::string &sSupportedType : getPrerequisiteSupportedTypes() ) {
         if( existingOptionType == sSupportedType ) {
             isOfSupportType = true;
             break;
@@ -377,21 +376,12 @@ void options_manager::cOpt::setPrerequisites( const std::string &sOption,
     }
 
     if( !isOfSupportType ) {
-        debugmsg( "setPrerequisite: option %s not of type bool", sType.c_str() );
+        debugmsg( "setPrerequisite: option %s not of supported type", sType.c_str() );
         return;
     }
 
-    if( !sAllowedValues.empty() ) {
-        const std::string &existingOptionValue = existingOption.getValue();
-        for( const std::string &sAllowedValue : sAllowedValues ) {
-            if( existingOptionValue == sAllowedValue ) {
-                sPrerequisite = sOption;
-                break;
-            }
-        }
-    } else {
-        sPrerequisite = sOption;
-    }
+    sPrerequisite = sOption;
+    sPrerequisiteAllowedValues = sAllowedValues;
 }
 
 std::string options_manager::cOpt::getPrerequisite() const
@@ -402,6 +392,22 @@ std::string options_manager::cOpt::getPrerequisite() const
 bool options_manager::cOpt::hasPrerequisite() const
 {
     return !sPrerequisite.empty();
+}
+
+bool options_manager::cOpt::checkPrerequisite() const
+{
+    if( !hasPrerequisite() ) {
+        return true;
+    }
+    bool isPrerequisiteFulfilled = false;
+    const std::string prerequisite_option_value = get_options().get_option( sPrerequisite ).getValue();
+    for( const std::string &sAllowedPrerequisiteValue : sPrerequisiteAllowedValues ) {
+        if( prerequisite_option_value == sAllowedPrerequisiteValue ) {
+            isPrerequisiteFulfilled = true;
+            break;
+        }
+    }
+    return isPrerequisiteFulfilled;
 }
 
 //helper functions
@@ -1295,10 +1301,15 @@ void options_manager::add_options_interface()
 
     mOptionsSort["interface"]++;
 
-    add( "DIAG_MOVE_WITH_MODIFIERS", "interface",
-         translate_marker( "Diagonal movement with cursor keys and modifiers" ),
-         translate_marker( "If true, allows diagonal movement with cursor keys using CTRL and SHIFT modifiers.  Diagonal movement action keys are taken from keybindings, so you need these to be configured." ),
-         true, COPT_CURSES_HIDE
+    add( "ARROW_KEYS_VS_MODIFIERS", "interface",
+         translate_marker( "Behavior for Ctrl/Shift modifiers and arrow keys" ),
+         translate_marker( "Numpad emulation: holding Ctrl picks the first arrow key pressed as a modifier for consecutive arrow presses, combining them into the corresponding numpad keys.  Rotation: allows diagonal movement with cursor keys using CTRL and SHIFT modifiers." ),
+    {
+        { "", translate_marker( "None" ) },
+        { "numpad", translate_marker( "Numpad emulation" ) },
+        { "rotation", translate_marker( "Rotation" ) }
+    },
+    "numpad", COPT_CURSES_HIDE
        );
 
     mOptionsSort["interface"]++;
@@ -1324,12 +1335,6 @@ void options_manager::add_options_interface()
          translate_marker( "Switch between sidebar on the left or on the right side.  Requires restart." ),
          //~ sidebar position
     { { "left", translate_marker( "Left" ) }, { "right", translate_marker( "Right" ) } }, "right"
-       );
-
-    add( "SIDEBAR_STYLE", "interface", translate_marker( "Sidebar style" ),
-         translate_marker( "Switch between a narrower or wider sidebar." ),
-         //~ sidebar style
-    { { "wider", translate_marker( "Wider" ) }, { "narrow", translate_marker( "Narrow" ) } }, "narrow"
        );
 
     add( "LOG_FLOW", "interface", translate_marker( "Message log flow" ),
@@ -1429,6 +1434,13 @@ void options_manager::add_options_graphics()
        );
 
     get_option( "ANIMATION_RAIN" ).setPrerequisite( "ANIMATIONS" );
+
+    add( "ANIMATION_PROJECTILES", "graphics", translate_marker( "Projectile animation" ),
+         translate_marker( "If true, will display animations for projectiles like bullets, arrows, and thrown items." ),
+         true
+       );
+
+    get_option( "ANIMATION_PROJECTILES" ).setPrerequisite( "ANIMATIONS" );
 
     add( "ANIMATION_SCT", "graphics", translate_marker( "SCT animation" ),
          translate_marker( "If true, will display scrolling combat text animations." ),
@@ -1541,22 +1553,24 @@ void options_manager::add_options_graphics()
 #endif
 
 #ifndef __ANDROID__
-    add( "RENDERER", "graphics", translate_marker( "Renderer" ),
-         translate_marker( "Set which renderer to use.  Requires restart." ),
 #   ifndef TILES
-         // No renderer selection in non-TILES mode
-    {   { "software", translate_marker( "software" ) }
-    },
-#   else
-         cata_tiles::build_renderer_list(),
-#   endif
+    // No renderer selection in non-TILES mode
+    add( "RENDERER", "graphics", translate_marker( "Renderer" ),
+    translate_marker( "Set which renderer to use.  Requires restart." ),   {   { "software", translate_marker( "software" ) } },
     "software", COPT_CURSES_HIDE );
+#   else
+    std::vector<options_manager::id_and_option> renderer_list = cata_tiles::build_renderer_list();
+    add( "RENDERER", "graphics", translate_marker( "Renderer" ),
+         translate_marker( "Set which renderer to use.  Requires restart." ), renderer_list,
+         renderer_list.front().first, COPT_CURSES_HIDE );
+#   endif
+
 #else
     add( "SOFTWARE_RENDERING", "graphics", translate_marker( "Software rendering" ),
          translate_marker( "Use software renderer instead of graphics card acceleration.  Requires restart." ),
+         // take default setting from pre-game settings screen - important as both software + hardware rendering have issues with specific devices
          android_get_default_setting( "Software rendering", false ),
-         COPT_CURSES_HIDE // take default setting from pre-game settings screen - important as both software + hardware rendering have issues with specific devices
-         false, COPT_CURSES_HIDE
+         COPT_CURSES_HIDE
        );
 #endif
 
@@ -1586,6 +1600,17 @@ void options_manager::add_options_graphics()
         { "linear", translate_marker( "Linear filtering" ) }
     },
     "none", COPT_CURSES_HIDE );
+
+#ifndef __ANDROID__
+    add( "SCALING_FACTOR", "graphics", translate_marker( "Scaling factor" ),
+    translate_marker( "Factor by which to scale the display. Requires restart." ), {
+        { "1", translate_marker( "1x" ) },
+        { "2", translate_marker( "2x" )},
+        { "4", translate_marker( "4x" )}
+    },
+    "1", COPT_CURSES_HIDE );
+#endif
+
 }
 
 void options_manager::add_options_debug()
@@ -1712,12 +1737,12 @@ void options_manager::add_options_world_default()
     mOptionsSort["world_default"]++;
 
     add( "MONSTER_SPEED", "world_default", translate_marker( "Monster speed" ),
-         translate_marker( "Determines the movement rate of monsters.  A higher value increases monster speed and a lower reduces it." ),
+         translate_marker( "Determines the movement rate of monsters.  A higher value increases monster speed and a lower reduces it.  Requires world reset." ),
          1, 1000, 100, COPT_NO_HIDE, "%i%%"
        );
 
     add( "MONSTER_RESILIENCE", "world_default", translate_marker( "Monster resilience" ),
-         translate_marker( "Determines how much damage monsters can take.  A higher value makes monsters more resilient and a lower makes them more flimsy." ),
+         translate_marker( "Determines how much damage monsters can take.  A higher value makes monsters more resilient and a lower makes them more flimsy.  Requires world reset." ),
          1, 1000, 100, COPT_NO_HIDE, "%i%%"
        );
 
@@ -1847,7 +1872,7 @@ void options_manager::add_options_android()
     mOptionsSort["android"]++;
 
     add( "ANDROID_VIBRATION", "android", translate_marker( "Vibration duration" ),
-         translate_marker( "If non-zero, vibrate the device for this long on input, in millisconds. Ignored if hardware keyboard connected." ),
+         translate_marker( "If non-zero, vibrate the device for this long on input, in milliseconds. Ignored if hardware keyboard connected." ),
          0, 200, 10
        );
 
@@ -1903,7 +1928,7 @@ void options_manager::add_options_android()
        );
 
     add( "ANDROID_HIDE_HOLDS", "android", translate_marker( "Virtual joystick hides shortcuts" ),
-         translate_marker( "If true, hides on-screen keyboard shortcuts while using the virtual joystick. Helps keep the view uncluttered while travelling long distances and navigating menus." ),
+         translate_marker( "If true, hides on-screen keyboard shortcuts while using the virtual joystick. Helps keep the view uncluttered while traveling long distances and navigating menus." ),
          true
        );
 
@@ -2080,9 +2105,6 @@ static void refresh_tiles( bool used_tiles_changed, bool pixel_minimap_height_ch
             //g->init_ui is called when zoom is changed
             g->reset_zoom();
             if( ingame ) {
-                if( g->pixel_minimap_option ) {
-                    wrefresh( g->w_pixel_minimap );
-                }
                 g->refresh_all();
             }
             tilecontext->do_tile_loading_report();
@@ -2093,7 +2115,6 @@ static void refresh_tiles( bool used_tiles_changed, bool pixel_minimap_height_ch
     } else if( ingame && g->pixel_minimap_option && pixel_minimap_height_changed ) {
         tilecontext->reinit_minimap();
         g->init_ui();
-        wrefresh( g->w_pixel_minimap );
         g->refresh_all();
     }
 }
@@ -2227,9 +2248,8 @@ std::string options_manager::show( bool ingame, const bool world_options_only )
 
             nc_color cLineColor = c_light_green;
             const cOpt &current_opt = cOPTIONS[mPageItems[iCurrentPage][i]];
-            bool hasPrerequisite = current_opt.hasPrerequisite();
-            bool prerequisiteEnabled = !hasPrerequisite ||
-                                       cOPTIONS[ current_opt.getPrerequisite() ].value_as<bool>();
+            const bool hasPrerequisite = current_opt.hasPrerequisite();
+            const bool hasPrerequisiteFulfilled = current_opt.checkPrerequisite();
 
             int line_pos = i - iStartPos; // Current line position in window.
 
@@ -2245,9 +2265,9 @@ std::string options_manager::show( bool ingame, const bool world_options_only )
 
             const std::string name = utf8_truncate( current_opt.getMenuText(), name_width );
             mvwprintz( w_options, line_pos, name_col + 3, !hasPrerequisite ||
-                       prerequisiteEnabled ? c_white : c_light_gray, name );
+                       hasPrerequisiteFulfilled ? c_white : c_light_gray, name );
 
-            if( hasPrerequisite && !prerequisiteEnabled ) {
+            if( hasPrerequisite && !hasPrerequisiteFulfilled ) {
                 cLineColor = c_light_gray;
 
             } else if( current_opt.getValue() == "false" ) {
@@ -2346,10 +2366,9 @@ std::string options_manager::show( bool ingame, const bool world_options_only )
 
         cOpt &current_opt = cOPTIONS[mPageItems[iCurrentPage][iCurrentLine]];
         bool hasPrerequisite = current_opt.hasPrerequisite();
-        bool prerequisiteEnabled = !hasPrerequisite ||
-                                   cOPTIONS[ current_opt.getPrerequisite() ].value_as<bool>();
+        bool hasPrerequisiteFulfilled = current_opt.checkPrerequisite();
 
-        if( hasPrerequisite && !prerequisiteEnabled &&
+        if( hasPrerequisite && !hasPrerequisiteFulfilled &&
             ( action == "RIGHT" || action == "LEFT" || action == "CONFIRM" ) ) {
             popup( _( "Prerequisite for this option not met!\n(%s)" ),
                    get_options().get_option( current_opt.getPrerequisite() ).getMenuText() );
@@ -2429,6 +2448,7 @@ std::string options_manager::show( bool ingame, const bool world_options_only )
             // keybinding screen erased the internal borders of main menu, restore it:
             draw_borders_internal( w_options_header, mapLines );
         } else if( action == "QUIT" ) {
+            g->reinitmap = true;
             break;
         }
     }
@@ -2439,7 +2459,6 @@ std::string options_manager::show( bool ingame, const bool world_options_only )
     bool lang_changed = false;
     bool used_tiles_changed = false;
     bool pixel_minimap_changed = false;
-    bool sidebar_style_changed = false;
     bool terminal_size_changed = false;
 
     for( auto &iter : OPTIONS_OLD ) {
@@ -2454,9 +2473,6 @@ std::string options_manager::show( bool ingame, const bool world_options_only )
                 || iter.first == "PIXEL_MINIMAP_RATIO"
                 || iter.first == "PIXEL_MINIMAP_MODE" ) {
                 pixel_minimap_changed = true;
-
-            } else if( iter.first == "SIDEBAR_STYLE" ) {
-                sidebar_style_changed = true;
 
             } else if( iter.first == "TILES" || iter.first == "USE_TILES" ) {
                 used_tiles_changed = true;
@@ -2496,20 +2512,17 @@ std::string options_manager::show( bool ingame, const bool world_options_only )
         set_language();
     }
 
-    if( sidebar_style_changed ) {
-        if( ingame ) {
-            g->toggle_sidebar_style();
-        } else {
-#ifdef TILES
-            tilecontext->reinit_minimap();
-#endif
-            g->narrow_sidebar = !g->narrow_sidebar;
-            g->init_ui();
-        }
-    }
-
 #if !defined(__ANDROID__) && (defined TILES || defined _WIN32 || defined WINDOWS)
     if( terminal_size_changed ) {
+        int scaling_factor = get_scaling_factor();
+        int TERMX = ::get_option<int>( "TERMINAL_X" );
+        int TERMY = ::get_option<int>( "TERMINAL_Y" );
+        TERMX -= TERMX % scaling_factor;
+        TERMY -= TERMY % scaling_factor;
+        get_option( "TERMINAL_X" ).setValue( std::max( FULL_SCREEN_WIDTH * scaling_factor, TERMX ) );
+        get_option( "TERMINAL_Y" ).setValue( std::max( FULL_SCREEN_HEIGHT * scaling_factor, TERMY ) );
+        save();
+
         handle_resize( projected_window_width(), projected_window_height() );
     }
 #else
@@ -2653,11 +2666,6 @@ bool options_manager::load_legacy()
 
     return read_from_file_optional( FILENAMES["legacy_options"], reader ) ||
            read_from_file_optional( FILENAMES["legacy_options2"], reader );
-}
-
-bool use_narrow_sidebar()
-{
-    return TERMY < 25 || g->narrow_sidebar;
 }
 
 bool options_manager::has_option( const std::string &name ) const
