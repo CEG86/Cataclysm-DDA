@@ -1187,7 +1187,7 @@ bool Font::draw_window( const catacurses::window &w, const int offsetx, const in
         }
     }
 
-    // @todo: Get this from UTF system to make sure it is exactly the kind of space we need
+    // TODO: Get this from UTF system to make sure it is exactly the kind of space we need
     static const std::string space_string = " ";
 
     bool update = false;
@@ -1378,7 +1378,7 @@ SDL_Keycode sdl_keycode_opposite_arrow( SDL_Keycode key )
 
 bool sdl_keycode_is_arrow( SDL_Keycode key )
 {
-    return ( bool )sdl_keycode_opposite_arrow( key );
+    return static_cast<bool>( sdl_keycode_opposite_arrow( key ) );
 }
 
 long arrow_combo_to_numpad( SDL_Keycode mod, SDL_Keycode key )

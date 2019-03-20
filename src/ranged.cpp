@@ -48,7 +48,7 @@ const trap_str_id tr_practice_target( "tr_practice_target" );
 static projectile make_gun_projectile( const item &gun );
 int time_to_fire( const Character &p, const itype &firing );
 static void cycle_action( item &weap, const tripoint &pos );
-void make_gun_sound_effect( player &p, bool burst, item *weapon );
+void make_gun_sound_effect( const player &p, bool burst, item *weapon );
 extern bool is_valid_in_w_terrain( int, int );
 
 static double occupied_tile_fraction( m_size target_size )
@@ -240,12 +240,12 @@ int player::fire_gun( const tripoint &target, int shots, item &gun )
 
     // Number of shots to fire is limited by the amount of remaining ammo
     if( gun.ammo_required() ) {
-        shots = std::min( shots, int( gun.ammo_remaining() / gun.ammo_required() ) );
+        shots = std::min( shots, static_cast<int>( gun.ammo_remaining() / gun.ammo_required() ) );
     }
 
     // cap our maximum burst size by the amount of UPS power left
     if( !gun.has_flag( "VEHICLE" ) && gun.get_gun_ups_drain() > 0 ) {
-        shots = std::min( shots, int( charges_of( "UPS" ) / gun.get_gun_ups_drain() ) );
+        shots = std::min( shots, static_cast<int>( charges_of( "UPS" ) / gun.get_gun_ups_drain() ) );
     }
 
     if( shots <= 0 ) {
@@ -316,7 +316,7 @@ int player::fire_gun( const tripoint &target, int shots, item &gun )
         }
 
         if( shot.missed_by <= .1 ) {
-            lifetime_stats.headshots++; // @todo: check head existence for headshot
+            lifetime_stats.headshots++; // TODO: check head existence for headshot
         }
 
         if( shot.hit_critter ) {
@@ -352,11 +352,11 @@ int player::fire_gun( const tripoint &target, int shots, item &gun )
     return curshot;
 }
 
-// @todo: Method
+// TODO: Method
 int throw_cost( const player &c, const item &to_throw )
 {
     // Very similar to player::attack_speed
-    // @todo: Extract into a function?
+    // TODO: Extract into a function?
     // Differences:
     // Dex is more (2x) important for throwing speed
     // At 10 skill, the cost is down to 0.75%, not 0.66%
@@ -387,7 +387,7 @@ int Character::throw_dispersion_per_dodge( bool add_encumbrance ) const
     // +200 per dodge point at 0 dexterity
     // +100 at 8, +80 at 12, +66.6 at 16, +57 at 20, +50 at 24
     // Each 10 encumbrance on either hand is like -1 dex (can bring penalty to +400 per dodge)
-    // Maybe @todo: Only use one hand
+    // Maybe TODO: Only use one hand
     const int encumbrance = add_encumbrance ? encumb( bp_hand_l ) + encumb( bp_hand_r ) : 0;
     ///\EFFECT_DEX increases throwing accuracy against targets with good dodge stat
     float effective_dex = 2 + get_dex() / 4.0f - ( encumbrance ) / 40.0f;
@@ -408,7 +408,7 @@ int Character::throwing_dispersion( const item &to_throw, Creature *critter,
 
     int throw_difficulty = 1000;
     // 1000 penalty for every liter after the first
-    // @todo: Except javelin type items
+    // TODO: Except javelin type items
     throw_difficulty += std::max<int>( 0, units::to_milliliter( volume - 1000_ml ) );
     // 1 penalty for gram above str*100 grams (at 0 skill)
     ///\EFFECT_STR decreases throwing dispersion when throwing heavy objects
@@ -419,7 +419,7 @@ int Character::throwing_dispersion( const item &to_throw, Creature *critter,
     const int throw_skill = std::min( MAX_SKILL, get_skill_level( skill_throw ) );
     int dispersion = 10 * throw_difficulty / ( 8 * throw_skill + 4 );
     // If the target is a creature, it moves around and ruins aim
-    // @todo: Inform projectile functions if the attacker actually aims for the critter or just the tile
+    // TODO: Inform projectile functions if the attacker actually aims for the critter or just the tile
     if( critter != nullptr ) {
         // It's easier to dodge at close range (thrower needs to adjust more)
         // Dodge x10 at point blank, x5 at 1 dist, then flat
@@ -690,7 +690,7 @@ static int find_target( const std::vector<Creature *> &t, const tripoint &tpos )
 {
     for( size_t i = 0; i < t.size(); ++i ) {
         if( t[i]->pos() == tpos ) {
-            return int( i );
+            return static_cast<int>( i );
         }
     }
     return -1;
@@ -773,7 +773,7 @@ std::string get_colored_bar( const double val, const int width, const std::strin
         int used_width = 0;
         for( auto it( begin ); it != end; ++it ) {
             const double factor = std::min( 1.0, std::max( 0.0, std::get<0>( *it ) * val ) );
-            const int seg_width = int( factor * bar_width ) - used_width;
+            const int seg_width = static_cast<int>( factor * bar_width ) - used_width;
 
             if( seg_width <= 0 ) {
                 continue;
@@ -852,7 +852,7 @@ static int print_ranged_chance( const player &p, const catacurses::window &w, in
             int last_chance = 0;
             std::string confidence_s = enumerate_as_string( confidence_config.begin(), confidence_config.end(),
             [&]( const confidence_rating & config ) {
-                // @todo: Consider not printing 0 chances, but only if you can print something (at least miss 100% or so)
+                // TODO: Consider not printing 0 chances, but only if you can print something (at least miss 100% or so)
                 int chance = std::min<int>( 100, 100.0 * ( config.aim_level * confidence ) ) - last_chance;
                 last_chance += chance;
                 return string_format( "%s: <color_%s>%3d%%</color>", _( config.label/*.c_str()*/ ), config.color,
@@ -1013,13 +1013,13 @@ std::vector<aim_type> Character::get_aim_types( const item &gun ) const
     return aim_types;
 }
 
-// @todo: Shunt redundant drawing code elsewhere
+// TODO: Shunt redundant drawing code elsewhere
 std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
         item *relevant, int range, const itype *ammo,
         const target_callback &on_mode_change,
         const target_callback &on_ammo_change )
 {
-    // @todo: this should return a reference to a static vector which is cleared on each call.
+    // TODO: this should return a reference to a static vector which is cleared on each call.
     static const std::vector<tripoint> empty_result{};
     std::vector<tripoint> ret;
 
@@ -1084,7 +1084,7 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
             return rl_dist( lhs->pos(), pc.pos() ) < rl_dist( rhs->pos(), pc.pos() );
         } );
 
-        // @todo: last_target should be member of target_handler
+        // TODO: last_target should be member of target_handler
         const auto iter = std::find( targets.begin(), targets.end(), pc.last_target.lock().get() );
 
         if( iter != targets.end() ) {
@@ -1161,8 +1161,8 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
 
     int num_instruction_lines = draw_targeting_window( w_target, relevant->tname(),
                                 mode, ctxt, aim_types,
-                                bool( on_mode_change ),
-                                bool( on_ammo_change ), tiny );
+                                static_cast<bool>( on_mode_change ),
+                                static_cast<bool>( on_ammo_change ), tiny );
 
     bool snap_to_target = get_option<bool>( "SNAP_TO_TARGET" );
 
@@ -1346,8 +1346,8 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
         wrefresh( g->w_terrain );
         draw_targeting_window( w_target, relevant->tname(),
                                mode, ctxt, aim_types,
-                               bool( on_mode_change ),
-                               bool( on_ammo_change ), tiny );
+                               static_cast<bool>( on_mode_change ),
+                               static_cast<bool>( on_ammo_change ), tiny );
         wrefresh( w_target );
 
         catacurses::refresh();
@@ -1516,6 +1516,14 @@ std::vector<tripoint> target_handler::target_ui( player &pc, target_mode mode,
             target = -1;
             break;
         }
+
+        // Make player's sprite flip to face the current target
+        if( dst.x > src.x ) {
+            g->u.facing = FD_RIGHT;
+        } else if( dst.x < src.x ) {
+            g->u.facing = FD_LEFT;
+        }
+
     } while( true );
 
     pc.view_offset = old_offset;
@@ -1664,7 +1672,7 @@ static void cycle_action( item &weap, const tripoint &pos )
     }
 }
 
-void make_gun_sound_effect( player &p, bool burst, item *weapon )
+void make_gun_sound_effect( const player &p, bool burst, item *weapon )
 {
     const auto data = weapon->gun_noise( burst );
     if( data.volume > 0 ) {
@@ -1800,9 +1808,9 @@ dispersion_sources player::get_weapon_dispersion( const item &obj ) const
     }
 
     /** @EFFECT_GUN improves usage of accurate weapons and sights */
-    double avgSkill = double( get_skill_level( skill_gun ) +
-                              get_skill_level( obj.gun_skill() ) ) / 2.0;
-    avgSkill = std::min( avgSkill, double( MAX_SKILL ) );
+    double avgSkill = static_cast<double>( get_skill_level( skill_gun ) +
+                                           get_skill_level( obj.gun_skill() ) ) / 2.0;
+    avgSkill = std::min( avgSkill, static_cast<double>( MAX_SKILL ) );
 
     dispersion.add_range( dispersion_from_skill( avgSkill, weapon_dispersion ) );
 
@@ -1853,13 +1861,13 @@ double player::gun_value( const item &weap, long ammo ) const
 
     float damage_factor = gun_damage.total_damage();
     if( damage_factor > 0 ) {
-        // @todo Multiple damage types
+        // TODO: Multiple damage types
         damage_factor += 0.5f * gun_damage.damage_units.front().res_pen;
     }
 
     int move_cost = time_to_fire( *this, *weap.type );
     if( gun.clip != 0 && gun.clip < 10 ) {
-        // @todo: RELOAD_ONE should get a penalty here
+        // TODO: RELOAD_ONE should get a penalty here
         int reload_cost = gun.reload_time + encumb( bp_hand_l ) + encumb( bp_hand_r );
         reload_cost /= gun.clip;
         move_cost += reload_cost;
@@ -1909,7 +1917,7 @@ double player::gun_value( const item &weap, long ammo ) const
 
     float damage_and_accuracy = damage_factor * dispersion_factor;
 
-    // @todo: Some better approximation of the ability to keep on shooting
+    // TODO: Some better approximation of the ability to keep on shooting
     static const std::vector<std::pair<float, float>> capacity_thresholds = {{
             { 1.0f, 0.5f },
             { 5.0f, 1.0f },

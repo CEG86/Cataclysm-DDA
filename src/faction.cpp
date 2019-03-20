@@ -106,7 +106,7 @@ faction_template::faction_template( JsonObject &jsobj )
 {
 }
 
-//TODO move them to json
+// TODO: move them to json
 
 static const std::array<std::string, 15> faction_adj_pos = { {
         translate_marker_context( "faction_adj", "Shining" ), translate_marker_context( "faction_adj", "Sacred" ), translate_marker_context( "faction_adj", "Golden" ), translate_marker_context( "faction_adj", "Holy" ), translate_marker_context( "faction_adj", "Righteous" ), translate_marker_context( "faction_adj", "Devoted" ),
@@ -1139,7 +1139,7 @@ void new_faction_manager::display() const
             camps.push_back( temp_camp );
         }
         if( tab < tab_mode::FIRST_TAB || tab >= tab_mode::NUM_TABS ) {
-            debugmsg( "The sanity check failed because tab=%d", ( int )tab );
+            debugmsg( "The sanity check failed because tab=%d", static_cast<int>( tab ) );
             tab = tab_mode::FIRST_TAB;
         }
         int active_vec_size;

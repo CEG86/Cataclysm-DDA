@@ -529,6 +529,8 @@ void game::init_ui( const bool resized )
 
     w_panel_adm = w_panel_adm_ptr = catacurses::newwin( 15, 65, ( TERMY / 2 ) - 8, ( TERMX / 2 ) - 33 );
     werase( w_panel_adm );
+    // need to init in order to avoid crash. gets updated by the panel code.
+    w_pixel_minimap = catacurses::newwin( 1, 1, 0, 0 );
     liveview.init();
 
     // Only refresh if we are in-game, otherwise all resources are not initialized
@@ -624,7 +626,7 @@ void game::setup()
 
     weather = WEATHER_CLEAR; // Start with some nice weather...
     // Weather shift in 30
-    //@todo: shouldn't that use calendar::start instead of INITIAL_TIME?
+    // TODO: shouldn't that use calendar::start instead of INITIAL_TIME?
     nextweather = calendar::time_of_cataclysm + time_duration::from_hours(
                       get_option<int>( "INITIAL_TIME" ) ) + 30_minutes;
 
@@ -1681,7 +1683,7 @@ void game::update_weather()
         temperature = w.temperature;
         lightning_active = false;
         // Check weather every few turns, instead of every turn.
-        //@todo: predict when the weather changes and use that time.
+        // TODO: predict when the weather changes and use that time.
         nextweather = calendar::turn + 50_turns;
         if( weather != old_weather && weather_data( weather ).dangerous &&
             get_levz() >= 0 && m.is_outside( u.pos() )
@@ -1837,8 +1839,9 @@ void game::add_npc_follower( const int &id )
 {
     if( !std::any_of( follower_ids.begin(), follower_ids.end(), [id]( int i ) {
     return i == id;
-} ) )
-    follower_ids.push_back( id );
+} ) ) {
+        follower_ids.push_back( id );
+    }
 }
 
 void game::remove_npc_follower( const int &id )
@@ -2388,7 +2391,7 @@ bool game::try_get_right_click_action( action_id &act, const tripoint &mouse_tar
             return false;
         }
 
-        //TODO: Add weapon range check. This requires weapon to be reloaded.
+        // TODO: Add weapon range check. This requires weapon to be reloaded.
 
         act = ACTION_FIRE;
     } else if( is_adjacent &&
@@ -2937,7 +2940,7 @@ void game::debug()
                 s.c_str(),
                 u.posx(), u.posy(), get_levx(), get_levy(),
                 overmap_buffer.ter( u.global_omt_location() )->get_name().c_str(),
-                int( calendar::turn ),
+                static_cast<int>( calendar::turn ),
                 ( get_option<bool>( "RANDOM_NPC" ) ? _( "NPCs are going to spawn." ) :
                   _( "NPCs are NOT going to spawn." ) ),
                 num_creatures() );
@@ -3186,7 +3189,7 @@ void game::debug()
                 smenu.reset();
                 smenu.addentry( 0, true, 'y', "%s: %d", _( "year" ), calendar::turn.years() );
                 smenu.addentry( 1, !calendar::eternal_season(), 's', "%s: %d",
-                                _( "season" ), int( season_of_year( calendar::turn ) ) );
+                                _( "season" ), static_cast<int>( season_of_year( calendar::turn ) ) );
                 smenu.addentry( 2, true, 'd', "%s: %d", _( "day" ), day_of_season<int>( calendar::turn ) );
                 smenu.addentry( 3, true, 'h', "%s: %d", _( "hour" ), hour_of_day<int>( calendar::turn ) );
                 smenu.addentry( 4, true, 'm', "%s: %d", _( "minute" ), minute_of_hour<int>( calendar::turn ) );
@@ -3199,7 +3202,7 @@ void game::debug()
                         set_turn( calendar::turn.years(), to_turns<int>( calendar::year_length() ), _( "Set year to?" ) );
                         break;
                     case 1:
-                        set_turn( int( season_of_year( calendar::turn ) ),
+                        set_turn( static_cast<int>( season_of_year( calendar::turn ) ),
                                   to_turns<int>( calendar::turn.season_length() ),
                                   _( "Set season to? (0 = spring)" ) );
                         break;
@@ -3214,7 +3217,7 @@ void game::debug()
                         break;
                     case 5:
                         set_turn( calendar::turn, 1,
-                                  string_format( _( "Set turn to? (One day is %i turns)" ), int( DAYS( 1 ) ) ).c_str() );
+                                  string_format( _( "Set turn to? (One day is %i turns)" ), static_cast<int>( DAYS( 1 ) ) ).c_str() );
                         break;
                     default:
                         break;
@@ -3368,7 +3371,7 @@ void game::disp_NPC_epilogues()
                            std::max( 0, ( TERMY - FULL_SCREEN_HEIGHT ) / 2 ),
                            std::max( 0, ( TERMX - FULL_SCREEN_WIDTH ) / 2 ) );
     epilogue epi;
-    // @todo: This search needs to be expanded to all NPCs
+    // TODO: This search needs to be expanded to all NPCs
     for( const npc &guy : all_npcs() ) {
         if( guy.is_friend() ) {
             epi.random_by_group( guy.male ? "male" : "female" );
@@ -3899,7 +3902,8 @@ void game::draw_minimap()
 
     // Print arrow to mission if we have one!
     if( !drew_mission ) {
-        double slope = ( cursx != targ.x ) ? double( targ.y - cursy ) / double( targ.x - cursx ) : 4;
+        double slope = ( cursx != targ.x ) ? static_cast<double>( targ.y - cursy ) / static_cast<double>
+                       ( targ.x - cursx ) : 4;
 
         if( cursx == targ.x || fabs( slope ) > 3.5 ) { // Vertical slope
             if( targ.y > cursy ) {
@@ -3912,7 +3916,7 @@ void game::draw_minimap()
             int arrowy = -1;
             if( fabs( slope ) >= 1. ) { // y diff is bigger!
                 arrowy = ( targ.y > cursy ? 6 : 0 );
-                arrowx = int( 3 + 3 * ( targ.y > cursy ? slope : ( 0 - slope ) ) );
+                arrowx = static_cast<int>( 3 + 3 * ( targ.y > cursy ? slope : ( 0 - slope ) ) );
                 if( arrowx < 0 ) {
                     arrowx = 0;
                 }
@@ -3921,7 +3925,7 @@ void game::draw_minimap()
                 }
             } else {
                 arrowx = ( targ.x > cursx ? 6 : 0 );
-                arrowy = int( 3 + 3 * ( targ.x > cursx ? slope : ( 0 - slope ) ) );
+                arrowy = static_cast<int>( 3 + 3 * ( targ.x > cursx ? slope : ( 0 - slope ) ) );
                 if( arrowy < 0 ) {
                     arrowy = 0;
                 }
@@ -4638,7 +4642,7 @@ void game::flashbang( const tripoint &p, bool player_immune )
         }
     }
     for( monster &critter : all_monsters() ) {
-        //@todo: can the following code be called for all types of creatures
+        // TODO: can the following code be called for all types of creatures
         dist = rl_dist( critter.pos(), p );
         if( dist <= 8 ) {
             if( dist <= 4 ) {
@@ -4669,7 +4673,7 @@ void game::shockwave( const tripoint &p, int radius, int force, int stun, int da
             knockback( p, critter.pos(), force, stun, dam_mult );
         }
     }
-    //@todo: combine the two loops and the case for g->u using all_creatures()
+    // TODO: combine the two loops and the case for g->u using all_creatures()
     for( npc &guy : all_npcs() ) {
         if( rl_dist( guy.pos(), p ) <= radius ) {
             add_msg( _( "%s is caught in the shockwave!" ), guy.name.c_str() );
@@ -4706,7 +4710,7 @@ void game::knockback( const tripoint &s, const tripoint &t, int force, int stun,
 
 void game::knockback( std::vector<tripoint> &traj, int force, int stun, int dam_mult )
 {
-    ( void )force; //FIXME: unused but header says it should do something
+    ( void )force; // FIXME: unused but header says it should do something
     // TODO: make the force parameter actually do something.
     // the header file says higher force causes more damage.
     // perhaps that is what it should do?
@@ -7675,7 +7679,7 @@ game::vmenu_ret game::list_items( const std::vector<map_item_stack> &item_list )
             if( !mSortCategory[0].empty() ) {
                 iActive++;
             }
-            iItemNum = int( filtered_items.size() ) + iCatSortNum;
+            iItemNum = static_cast<int>( filtered_items.size() ) + iCatSortNum;
         }
 
         if( reset ) {
@@ -7925,11 +7929,11 @@ game::vmenu_ret game::list_monsters( const std::vector<Creature *> &monster_list
         } else if( action == "UP" ) {
             iActive--;
             if( iActive < 0 ) {
-                iActive = int( monster_list.size() ) - 1;
+                iActive = static_cast<int>( monster_list.size() ) - 1;
             }
         } else if( action == "DOWN" ) {
             iActive++;
-            if( iActive >= int( monster_list.size() ) ) {
+            if( iActive >= static_cast<int>( monster_list.size() ) ) {
                 iActive = 0;
             }
         } else if( action == "NEXT_TAB" || action == "PREV_TAB" ) {
@@ -8070,7 +8074,7 @@ game::vmenu_ret game::list_monsters( const std::vector<Creature *> &monster_list
 
             mvwprintz( w_monsters_border, 0, ( width / 2 ) - numw - 2, c_light_green, " %*d", numw,
                        iActive + 1 );
-            wprintz( w_monsters_border, c_white, " / %*d ", numw, int( monster_list.size() ) );
+            wprintz( w_monsters_border, c_white, " / %*d ", numw, static_cast<int>( monster_list.size() ) );
 
             cCurMon = monster_list[iActive];
 
@@ -8094,7 +8098,7 @@ game::vmenu_ret game::list_monsters( const std::vector<Creature *> &monster_list
             centerlistview( iActivePos );
             draw_trail_to_square( iActivePos, false );
 
-            draw_scrollbar( w_monsters_border, iActive, iMaxRows, int( monster_list.size() ), 1 );
+            draw_scrollbar( w_monsters_border, iActive, iMaxRows, static_cast<int>( monster_list.size() ), 1 );
             wrefresh( w_monsters_border );
         }
 
@@ -8576,10 +8580,10 @@ void game::plthrow( int pos, const cata::optional<tripoint> &blind_throw_from_po
     reenter_fullscreen();
 }
 
-// @todo: Move data/functions related to targeting out of game class
+// TODO: Move data/functions related to targeting out of game class
 bool game::plfire_check( const targeting_data &args )
 {
-    // @todo: Make this check not needed
+    // TODO: Make this check not needed
     if( args.relevant == nullptr ) {
         debugmsg( "Can't plfire_check a null" );
         return false;
@@ -8692,7 +8696,7 @@ bool game::plfire()
     int reload_time = 0;
     gun_mode gun = args.relevant->gun_current_mode();
 
-    // @todo: move handling "RELOAD_AND_SHOOT" flagged guns to a separate function.
+    // TODO: move handling "RELOAD_AND_SHOOT" flagged guns to a separate function.
     if( gun->has_flag( "RELOAD_AND_SHOOT" ) ) {
         if( !gun->ammo_remaining() ) {
             item::reload_option opt = u.ammo_location &&
@@ -8746,7 +8750,7 @@ bool game::plfire()
     int shots = 0;
 
     u.moves -= reload_time;
-    // @todo: add check for TRIGGERHAPPY
+    // TODO: add check for TRIGGERHAPPY
     if( args.pre_fire ) {
         args.pre_fire( shots );
     }
@@ -8764,7 +8768,7 @@ bool game::plfire()
 
 bool game::plfire( item &weapon, int bp_cost )
 {
-    // @todo: bionic power cost of firing should be derived from a value of the relevant weapon.
+    // TODO: bionic power cost of firing should be derived from a value of the relevant weapon.
     gun_mode gun = weapon.gun_current_mode();
     // gun can be null if the item is an unattached gunmod
     if( !gun ) {
@@ -9809,6 +9813,14 @@ bool game::plmove( int dx, int dy, int dz )
         }
     }
 
+    // If the player is *attempting to* move on the X axis, update facing direction of their sprite to match.
+    const int new_dx = dest_loc.x - u.posx();
+    if( new_dx > 0 ) {
+        u.facing = FD_RIGHT;
+    } else if( new_dx < 0 ) {
+        u.facing = FD_LEFT;
+    }
+
     if( dz == 0 && ramp_move( dest_loc ) ) {
         // TODO: Make it work nice with automove (if it doesn't do so already?)
         return false;
@@ -10845,10 +10857,10 @@ void game::plswim( const tripoint &p )
         }
     }
     if( u.oxygen <= 5 && u.is_underwater() ) {
-        if( movecost < 500 )
+        if( movecost < 500 ) {
             popup( _( "You need to breathe! (%s to surface.)" ),
                    press_x( ACTION_MOVE_UP ).c_str() );
-        else {
+        } else {
             popup( _( "You need to breathe but you can't swim!  Get to dry land, quick!" ) );
         }
     }
@@ -11312,7 +11324,7 @@ void game::vertical_move( int movez, bool force )
             } );
 
             if( found != candidates.end() ) {
-                // @todo: De-uglify
+                // TODO: De-uglify
                 np->setpos( *found );
                 np->place_on_map();
                 np->setpos( *found );
@@ -11328,7 +11340,7 @@ void game::vertical_move( int movez, bool force )
     }
 
     // This ugly check is here because of stair teleport bullshit
-    // @todo: Remove stair teleport bullshit
+    // TODO: Remove stair teleport bullshit
     if( rl_dist( g->u.pos(), old_pos ) <= 1 ) {
         for( monster *m : monsters_following ) {
             m->set_dest( g->u.pos() );
@@ -11674,7 +11686,7 @@ void game::update_overmap_seen()
             for( auto it = line.begin();
                  it != line.end() && sight_points >= 0; ++it ) {
                 const oter_id &ter = overmap_buffer.ter( it->x, it->y, ompos.z );
-                sight_points -= int( ter->get_see_cost() );
+                sight_points -= static_cast<int>( ter->get_see_cost() );
             }
             if( sight_points >= 0 ) {
                 overmap_buffer.set_seen( x, y, ompos.z, true );
@@ -11705,8 +11717,8 @@ void game::replace_stair_monsters()
     coming_to_stairs.clear();
 }
 
-//TODO: abstract out the location checking code
-//TODO: refactor so zombies can follow up and down stairs instead of this mess
+// TODO: abstract out the location checking code
+// TODO: refactor so zombies can follow up and down stairs instead of this mess
 void game::update_stair_monsters()
 {
     // Search for the stairs closest to the player.
@@ -11972,7 +11984,7 @@ void game::perhaps_add_random_npc()
     }
 
     float density = get_option<float>( "NPC_DENSITY" );
-    //@todo This is inaccurate when the player is near a overmap border, and it will
+    // TODO: This is inaccurate when the player is near a overmap border, and it will
     //immediately spawn new npcs upon entering a new overmap. Rather use number of npcs *nearby*.
     const int npc_num = get_cur_om().get_npcs().size();
     if( npc_num > 0 ) {

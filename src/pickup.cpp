@@ -127,7 +127,7 @@ pickup_answer handle_problematic_pickup( const item &it, bool &offered_swap,
     amenu.text = explain;
 
     offered_swap = true;
-    // @todo: Gray out if not enough hands
+    // TODO: Gray out if not enough hands
     if( u.is_armed() ) {
         amenu.addentry( WIELD, !u.weapon.has_flag( "NO_UNWIELD" ), 'w',
                         _( "Dispose of %s and wield %s" ), u.weapon.display_name().c_str(),
@@ -602,7 +602,7 @@ void Pickup::pick_up( const tripoint &p, int min )
                 } else if( selected >= start + maxitems ) {
                     start += maxitems;
                 }
-            } else if( selected >= 0 && selected < int( matches.size() ) &&
+            } else if( selected >= 0 && selected < static_cast<int>( matches.size() ) &&
                        ( ( action == "RIGHT" && !getitem[matches[selected]].pick ) ||
                          ( action == "LEFT" && getitem[matches[selected]].pick ) ) ) {
                 idx = selected;
@@ -744,7 +744,7 @@ void Pickup::pick_up( const tripoint &p, int min )
 
                     if( cur_it < static_cast<int>( pickup_chars.size() ) ) {
                         mvwputch( w_pickup, 1 + ( cur_it % maxitems ), 0, icolor,
-                                  char( pickup_chars[cur_it] ) );
+                                  static_cast<char>( pickup_chars[cur_it] ) );
                     } else if( cur_it < static_cast<int>( pickup_chars.size() ) + static_cast<int>
                                ( pickup_chars.size() ) *
                                static_cast<int>( pickup_chars.size() ) ) {
@@ -752,7 +752,7 @@ void Pickup::pick_up( const tripoint &p, int min )
                         int p1 = p / pickup_chars.size();
                         int p2 = p % pickup_chars.size();
                         mvwprintz( w_pickup, 1 + ( cur_it % maxitems ), 0, icolor, "`%c%c",
-                                   char( pickup_chars[p1] ), char( pickup_chars[p2] ) );
+                                   static_cast<char>( pickup_chars[p1] ), static_cast<char>( pickup_chars[p2] ) );
                     } else {
                         mvwputch( w_pickup, 1 + ( cur_it % maxitems ), 0, icolor, ' ' );
                     }
@@ -768,7 +768,7 @@ void Pickup::pick_up( const tripoint &p, int min )
                     std::string item_name;
                     if( stacked_here[true_it].begin()->_item.ammo_type() == "money" ) {
                         //Count charges
-                        //TODO: transition to the item_location system used for the inventory
+                        // TODO: transition to the item_location system used for the inventory
                         unsigned long charges_total = 0;
                         for( const auto &item : stacked_here[true_it] ) {
                             charges_total += item._item.charges;

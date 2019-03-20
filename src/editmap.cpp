@@ -170,7 +170,7 @@ void edit_json( SAVEOBJ &it )
 
 editmap::editmap()
 {
-    width = TERMX - TERRAIN_WINDOW_TERM_WIDTH;
+    width = 45;
     height = TERMY;
     offsetX = VIEW_OFFSET_X;
     infoHeight = 0;
@@ -191,7 +191,7 @@ editmap::editmap()
     trset = undefined_trap_id;
     w_info = catacurses::window();
     w_help = catacurses::window();
-    padding = std::string( width - 2, ' ' );
+    padding = std::string( std::max( 0, width - 2 ), ' ' );
     blink = false;
     altblink = false;
     moveall = false;
@@ -328,7 +328,7 @@ void editmap::uphelp( const std::string &txt1, const std::string &txt2, const st
     if( !title.empty() ) {
         int hwidth = getmaxx( w_help );
         mvwhline( w_help, 2, 0, LINE_OXOX, hwidth );
-        int starttxt = int( ( hwidth - title.size() - 4 ) / 2 );
+        int starttxt = static_cast<int>( ( hwidth - title.size() - 4 ) / 2 );
         mvwprintw( w_help, 2, starttxt, "< " );
         wprintz( w_help, c_cyan, title );
         wprintw( w_help, " >" );
@@ -365,7 +365,7 @@ cata::optional<tripoint> editmap::edit()
     infoHeight = 20;
 
     w_info = catacurses::newwin( infoHeight, width, TERMY - infoHeight, offsetX );
-    w_help = catacurses::newwin( 3, width - 2, TERMY - 3, offsetX + 1 );
+    w_help = catacurses::newwin( 3, width, TERMY - 3, offsetX + 1 );
     for( int i = 0; i < getmaxx( w_help ); i++ ) {
         mvwaddch( w_help, 2, i, LINE_OXOX );
     }
@@ -550,7 +550,8 @@ void editmap::update_view( bool update_info )
         }
     }
 
-    // custom hilight. @todo; optimize
+    // custom hilight.
+    // TODO: optimize
     for( auto &elem : hilights ) {
         if( !elem.second.points.empty() ) {
             elem.second.draw( *this );
@@ -758,11 +759,11 @@ int editmap::edit_ter()
 
     const int xmin = 3; // left margin
     int xmax = pickw - xmin;
-    int tymax = int( ter_t::count() / xmax );
+    int tymax = static_cast<int>( ter_t::count() / xmax );
     if( ter_t::count() % xmax != 0 ) {
         tymax++;
     }
-    int fymax = int( furn_t::count() / xmax );
+    int fymax = static_cast<int>( furn_t::count() / xmax );
     if( furn_t::count() % xmax != 0 ) {
         fymax++;
     }
@@ -996,7 +997,7 @@ int editmap::edit_ter()
                 uberdraw = !uberdraw;
                 update_view( false );
             }
-        } else { // @todo: cleanup
+        } else { // TODO: cleanup
             if( action == "LEFT" ) {
                 increment( sel_frn, -1, furn_t::count() );
             } else if( action == "RIGHT" ) {
@@ -1617,7 +1618,7 @@ int editmap::select_shape( shapetype shape, int mode )
 /*
  * Display mapgen results over selected target position, and optionally regenerate / apply / abort
  */
-int editmap::mapgen_preview( real_coords &tc, uilist &gmenu )
+int editmap::mapgen_preview( const real_coords &tc, uilist &gmenu )
 {
     int ret = 0;
 
@@ -1790,7 +1791,7 @@ int editmap::mapgen_preview( real_coords &tc, uilist &gmenu )
                        omt_ref->get_name().c_str(), omt_ref.id().c_str() );
             }
         } else if( gpmenu.keypress == 'm' ) {
-            // @todo; keep preview as is and move target
+            // TODO: keep preview as is and move target
         } else if( gpmenu.keypress == KEY_NPAGE || gpmenu.keypress == KEY_PPAGE ||
                    gpmenu.keypress == KEY_LEFT || gpmenu.keypress == KEY_RIGHT ) {
 
@@ -1935,7 +1936,6 @@ bool editmap::mapgen_set( std::string om_name, tripoint &omt_tgt, int r, bool ch
         }
     }
     g->m.reset_vehicle_cache( target.z );
-
     cleartmpmap( tmpmap );
     return true;
 }

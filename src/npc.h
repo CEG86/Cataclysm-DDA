@@ -110,7 +110,7 @@ enum npc_need {
     num_needs
 };
 
-// @todo: Turn the personality struct into a vector/map?
+// TODO: Turn the personality struct into a vector/map?
 enum npc_personality_type : int {
     NPE_AGGRESSION,
     NPE_BRAVERY,
@@ -711,7 +711,7 @@ class npc : public player
         bool dispose_item( item_location &&obj, const std::string &prompt = std::string() ) override;
 
         void aim();
-        void do_reload( item &what );
+        void do_reload( const item &what );
 
         // Physical movement from one tile to the next
         /**
@@ -762,7 +762,7 @@ class npc : public player
         void heal_player( player &patient );
         void heal_self();
         void mug_player( player &mark );
-        void look_for_player( player &sought );
+        void look_for_player( const player &sought );
         bool saw_player_recently() const;// Do we have an idea of where u are?
         /** Returns true if food was consumed, false otherwise. */
         bool consume_food();

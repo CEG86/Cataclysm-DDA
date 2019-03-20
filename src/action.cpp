@@ -57,11 +57,11 @@ void parse_keymap( std::istream &keymap_txt, std::map<char, action_id> &kmap,
             break;
         } else if( id[0] != '#' ) {
             action_id act = look_up_action( id );
-            if( act == ACTION_NULL )
+            if( act == ACTION_NULL ) {
                 debugmsg( "\
 Warning! keymap.txt contains an unknown action, \"%s\"\n\
 Fix \"%s\" at your next chance!", id.c_str(), FILENAMES["keymap"].c_str() );
-            else {
+            } else {
                 while( !keymap_txt.eof() ) {
                     char ch;
                     keymap_txt >> std::noskipws >> ch >> std::skipws;
@@ -902,6 +902,12 @@ cata::optional<tripoint> choose_direction( const std::string &message, const boo
 
     const std::string action = ctxt.handle_input();
     if( const cata::optional<tripoint> vec = ctxt.get_direction( action ) ) {
+        // Make player's sprite face left/right if interacting with something to the left or right
+        if( vec->x > 0 ) {
+            g->u.facing = FD_RIGHT;
+        } else if( vec->x < 0 ) {
+            g->u.facing = FD_LEFT;
+        }
         return vec;
     } else if( action == "pause" ) {
         return tripoint_zero;

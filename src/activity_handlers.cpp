@@ -1712,7 +1712,7 @@ void activity_handlers::pickaxe_finish( player_activity *act, player *p )
     }
     p->add_msg_if_player( m_good, _( "You finish digging." ) );
     g->m.destroy( pos, true );
-    it.charges = std::max( long( 0 ), it.charges - it.type->charges_to_use() );
+    it.charges = std::max( static_cast<long>( 0 ), it.charges - it.type->charges_to_use() );
     if( it.charges == 0 && it.destroyed_at_zero_charges() ) {
         p->i_rem( &it );
     }
@@ -2058,10 +2058,10 @@ void activity_handlers::oxytorch_do_turn( player_activity *act, player *p )
 
     item &it = p->i_at( act->position );
     // act->values[0] is the number of charges yet to be consumed
-    const long charges_used = std::min( long( act->values[0] ), it.ammo_required() );
+    const long charges_used = std::min( static_cast<long>( act->values[0] ), it.ammo_required() );
 
     it.ammo_consume( charges_used, p->pos() );
-    act->values[0] -= int( charges_used );
+    act->values[0] -= static_cast<int>( charges_used );
 
     if( calendar::once_every( 2_turns ) ) {
         sounds::sound( act->placement, 10, sounds::sound_t::combat, _( "hissssssssss!" ) );
@@ -2638,7 +2638,7 @@ void activity_handlers::craft_do_turn( player_activity *act, player *p )
     act->moves_left -= crafting_speed * p->get_moves();
     p->set_moves( 0 );
     if( calendar::once_every( 1_hours ) && crafting_speed < 0.75f ) {
-        // @todo Describe the causes of slowdown
+        // TODO: Describe the causes of slowdown
         p->add_msg_if_player( m_bad, _( "You can't focus and are working slowly." ) );
     }
 }
@@ -3215,7 +3215,7 @@ void activity_handlers::robot_control_do_turn( player_activity *act, player *p )
         return;
     }
 
-    // @todo  Add some kind of chance of getting the target's attention
+    // TODO: Add some kind of chance of getting the target's attention
 
     // Allow time to pass
     p->pause();

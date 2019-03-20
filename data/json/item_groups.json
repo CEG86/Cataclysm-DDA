@@ -8993,6 +8993,7 @@
       ["legguard_lightplate", 30],
       ["helmet_barbute", 50],
       ["helmet_conical", 30],
+      ["armor_lorica", 25],
       ["armor_samurai", 50],
       ["helmet_kabuto", 50],
       ["helmet_larmor", 40],
@@ -10276,6 +10277,20 @@
         { "item": "cig_butt", "prob": 20 },
         { "item": "joint", "prob": 10 },
         { "item": "762_51_incendiary", "prob": 5 }
+      ]
+    },
+    {
+      "type": "item_group",
+      "id": "roof_sign",
+      "items": [
+        [ "rock", 10 ],
+        [ "can_food_unsealed", 10 ],
+        [ "steel_chunk", 10 ],
+        [ "steel_lump", 10 ],
+        [ "bottle_glass", 10 ],
+        [ "sharp_rock", 10 ],
+        [ "2x4", 10 ],
+        [ "pipe", 10 ]
       ]
     },
     {
