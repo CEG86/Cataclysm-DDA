@@ -6,7 +6,6 @@
 
 #include "output.h"
 
-static std::mt19937 &rng_get_engine();
 static std::uniform_int_distribution<long> rng_int_dist;
 static std::uniform_real_distribution<double> rng_real_dist;
 static std::normal_distribution<double> rng_normal_dist;
