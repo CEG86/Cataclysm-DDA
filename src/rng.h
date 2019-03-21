@@ -14,7 +14,7 @@
 // seeded (or re-seeded) with the given seed.
 void rng_set_engine_seed( uintmax_t seed );
 
-std::default_random_engine &rng_get_engine();
+std::mt19937 &rng_get_engine();
 uintmax_t rng_bits();
 
 long rng( long val1, long val2 );
