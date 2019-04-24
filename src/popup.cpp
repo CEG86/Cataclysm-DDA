@@ -1,7 +1,12 @@
 #include "popup.h"
 
+#include <algorithm>
+#include <array>
+#include <memory>
+
 #include "input.h"
 #include "output.h"
+#include "catacharset.h"
 
 extern bool test_mode;
 
@@ -345,7 +350,7 @@ std::string query_popup::wait_text( const std::string &text )
 }
 
 query_popup::result::result()
-    : wait_input( false ), action( "ERROR" ), evt()
+    : wait_input( false ), action( "ERROR" )
 {
 }
 

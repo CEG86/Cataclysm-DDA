@@ -2,38 +2,56 @@
 #ifndef VEHICLE_H
 #define VEHICLE_H
 
+#include <limits.h>
+#include <stddef.h>
 #include <array>
 #include <list>
 #include <map>
 #include <stack>
 #include <vector>
+#include <functional>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <utility>
 
 #include "active_item_cache.h"
 #include "calendar.h"
 #include "clzones.h"
 #include "damage.h"
+#include "game_constants.h"
 #include "item.h"
 #include "item_group.h"
 #include "item_stack.h"
 #include "line.h"
 #include "string_id.h"
 #include "tileray.h"
-#include "ui.h"
 #include "units.h"
+#include "enums.h"
+#include "item_location.h"
 
 class nc_color;
-class map;
 class player;
 class npc;
 class vehicle;
 class vpart_info;
 class vehicle_part_range;
+class JsonIn;
+class JsonOut;
+class vehicle_cursor;
+class zone_data;
+struct itype;
+struct uilist_entry;
+template <typename T> class visitable;
+
 enum vpart_bitflags : int;
 using vpart_id = string_id<vpart_info>;
 struct vehicle_prototype;
+
 using vproto_id = string_id<vehicle_prototype>;
 template<typename feature_type>
 class vehicle_part_with_feature_range;
+
 namespace catacurses
 {
 class window;
@@ -591,7 +609,6 @@ class vehicle
         void smash_security_system();
         // get vpart powerinfo for part number, accounting for variable-sized parts and hps.
         int part_vpower_w( int index, bool at_full_hp = false ) const;
-        int part_vpower_vhp( int index, bool at_full_hp = false ) const;
 
         // get vpart epowerinfo for part number.
         int part_epower_w( int index ) const;
@@ -964,6 +981,9 @@ class vehicle
         // Checks how much of an engine's current fuel is left in the tanks.
         int engine_fuel_left( const int e, bool recurse = false ) const;
         int fuel_capacity( const itype_id &ftype ) const;
+
+        // Returns the total specific energy of this fuel type. Frozen is ignored.
+        float fuel_specific_energy( const itype_id &ftype ) const;
 
         // drains a fuel type (e.g. for the kitchen unit)
         // returns amount actually drained, does not engage reactor
@@ -1469,6 +1489,7 @@ class vehicle
         std::vector<int> solar_panels;     // List of solar panel indices
         std::vector<int> wind_turbines;     // List of wind turbine indices
         std::vector<int> water_wheels;     // List of water wheel indices
+        std::vector<int> sails;            // List of sail indices
         std::vector<int> funnels;          // List of funnel indices
         std::vector<int> heaters;          // List of heater parts
         std::vector<int> loose_parts;      // List of UNMOUNT_ON_MOVE parts

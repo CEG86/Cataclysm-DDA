@@ -1,5 +1,8 @@
 #include "output.h"
 
+#include <ctype.h>
+#include <errno.h>
+#include <stdio.h>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdlib>
@@ -10,11 +13,16 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <array>
+#include <memory>
+#include <type_traits>
+#include <cmath>
 
 #include "cata_utility.h"
 #include "catacharset.h"
 #include "color.h"
 #include "cursesdef.h"
+#include "cursesport.h"
 #include "input.h"
 #include "item.h"
 #include "line.h"
@@ -26,10 +34,7 @@
 #include "string_input_popup.h"
 #include "units.h"
 
-#if (defined TILES || defined _WIN32 || defined WINDOWS)
-#include "cursesport.h"
-#endif
-#ifdef __ANDROID__
+#if defined(__ANDROID__)
 #include <SDL_keyboard.h>
 #endif
 
@@ -279,8 +284,7 @@ int fold_and_print( const catacurses::window &w, int begin_y, int begin_x, int w
                     nc_color base_color, const std::string &text, const char split )
 {
     nc_color color = base_color;
-    std::vector<std::string> textformatted;
-    textformatted = foldstring( text, width, split );
+    std::vector<std::string> textformatted = foldstring( text, width, split );
     for( int line_num = 0; static_cast<size_t>( line_num ) < textformatted.size(); line_num++ ) {
         print_colored_text( w, line_num + begin_y, begin_x, color, base_color, textformatted[line_num] );
     }
@@ -292,8 +296,7 @@ int fold_and_print_from( const catacurses::window &w, int begin_y, int begin_x, 
 {
     const int iWinHeight = getmaxy( w );
     std::stack<nc_color> color_stack;
-    std::vector<std::string> textformatted;
-    textformatted = foldstring( text, width );
+    std::vector<std::string> textformatted = foldstring( text, width );
     for( int line_num = 0; static_cast<size_t>( line_num ) < textformatted.size(); line_num++ ) {
         if( line_num + begin_y - begin_line == iWinHeight ) {
             break;
@@ -371,7 +374,7 @@ std::string name_and_value( const std::string &name, const std::string &value, i
     int name_width = utf8_width( name );
     int value_width = utf8_width( value );
     std::stringstream result;
-    result << name.c_str();
+    result << name;
     for( int i = ( name_width + value_width );
          i < std::max( field_width, name_width + value_width ); ++i ) {
         result << " ";
@@ -525,8 +528,7 @@ void draw_border( const catacurses::window &w, nc_color border_color, const std:
 
 void draw_tabs( const catacurses::window &w, int active_tab, ... )
 {
-    int win_width;
-    win_width = getmaxx( w );
+    int win_width = getmaxx( w );
     std::vector<std::string> labels;
     va_list ap;
     va_start( ap, active_tab );
@@ -702,7 +704,7 @@ input_event draw_item_info( const int iLeft, const int iWidth, const int iTop, c
     catacurses::window win = catacurses::newwin( iHeight, iWidth, iTop + VIEW_OFFSET_Y,
                              iLeft + VIEW_OFFSET_X );
 
-#ifdef TILES
+#if defined(TILES)
     clear_window_area( win );
 #endif // TILES
     wclear( win );
@@ -761,7 +763,7 @@ void draw_item_filter_rules( const catacurses::window &win, int starty, int heig
     // Clear every row, but the leftmost/rightmost pixels intact.
     const int len = getmaxx( win ) - 2;
     for( int i = 0; i < height; i++ ) {
-        mvwprintz( win, starty + i, 1, c_black, std::string( len, ' ' ).c_str() );
+        mvwprintz( win, starty + i, 1, c_black, std::string( len, ' ' ) );
     }
 
     // Not static so that language changes are correctly handled
@@ -1302,7 +1304,7 @@ void scrollbar::apply( const catacurses::window &window )
         int bar_size = std::max( 2, slot_size * viewport_size_v / content_size_v );
         int scrollable_size = scroll_to_last_v ? content_size_v : content_size_v - viewport_size_v + 1;
 
-        int bar_start, bar_end;
+        int bar_start;
         if( viewport_pos_v == 0 ) {
             bar_start = 0;
         } else if( scrollable_size > 2 ) {
@@ -1310,7 +1312,7 @@ void scrollbar::apply( const catacurses::window &window )
         } else {
             bar_start = slot_size - bar_size;
         }
-        bar_end = bar_start + bar_size;
+        int bar_end = bar_start + bar_size;
 
         for( int i = 0; i < slot_size; ++i ) {
             if( i >= bar_start && i < bar_end ) {
@@ -1499,7 +1501,7 @@ std::string cata::string_formatter::raw_string_format( const char *format, ... )
     errno = 0; // Clear errno before trying
     std::vector<char> buffer( 1024, '\0' );
 
-#if (defined __CYGWIN__)
+#if defined(__CYGWIN__)
     std::string rewritten_format = rewrite_vsnprintf( format );
     format = rewritten_format.c_str();
 #endif
@@ -1625,7 +1627,7 @@ std::string shortcut_text( nc_color shortcut_color, const std::string &fmt )
         std::string shortcut = fmt.substr( pos + 1, sep - pos - 1 );
 
         return string_format( "%s<color_%s>%s</color>%s", prestring,
-                              string_from_color( shortcut_color ).c_str(),
+                              string_from_color( shortcut_color ),
                               shortcut, poststring );
     }
 
@@ -1658,7 +1660,6 @@ get_bar( float cur, float max, int width, bool extra_resolution,
     return std::make_pair( result, col );
 }
 
-
 const std::pair<std::string, nc_color> get_hp_bar( const int cur_hp, const int max_hp,
         const bool is_mon )
 {
@@ -1667,7 +1668,6 @@ const std::pair<std::string, nc_color> get_hp_bar( const int cur_hp, const int m
     }
     return get_bar( cur_hp, max_hp, 5, !is_mon );
 }
-
 
 const std::pair<std::string, nc_color> get_stamina_bar( int cur_stam, int max_stam )
 {
@@ -1694,7 +1694,7 @@ std::pair<std::string, nc_color> get_light_level( const float light )
     static const int maximum_light_level = static_cast< int >( strings.size() ) - 1;
     const int light_level = clamp( static_cast< int >( ceil( light ) ), 0, maximum_light_level );
     const size_t array_index = static_cast< size_t >( light_level );
-    return pair_t{ _( strings[array_index].first.c_str() ), strings[array_index].second };
+    return pair_t{ _( strings[array_index].first ), strings[array_index].second };
 }
 
 std::string get_labeled_bar( const double val, const int width, const std::string &label, char c )
@@ -1722,7 +1722,7 @@ void display_table( const catacurses::window &w, const std::string &title, int c
     const int col_width = width / columns;
     int offset = 0;
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__)
     // no bindings, but give it its own input context so stale buttons don't hang around.
     input_context ctxt( "DISPLAY_TABLE" );
 #endif
@@ -1763,7 +1763,7 @@ scrollingcombattext::cSCT::cSCT( const int p_iPosX, const int p_iPosY, const dir
 
     // translate from player relative to screen relative direction
     iso_mode = false;
-#ifdef TILES
+#if defined(TILES)
     iso_mode = tile_iso && use_tiles;
 #endif
     oUp = iso_mode ? NORTHEAST : NORTH;
@@ -1808,7 +1808,7 @@ void scrollingcombattext::add( const int p_iPosX, const int p_iPosY, direction p
 
         bool tiled = false;
         bool iso_mode = false;
-#ifdef TILES
+#if defined(TILES)
         tiled = use_tiles;
         iso_mode = tile_iso && use_tiles;
 #endif
@@ -2029,7 +2029,6 @@ bool wildcard_match( const std::string &text_in, const std::string &pattern_in )
         return true;
     }
 
-    int pos;
     std::vector<std::string> pattern = string_split( wildcard_trim_rule( pattern_in ), '*' );
 
     if( pattern.size() == 1 ) { // no * found
@@ -2052,7 +2051,7 @@ bool wildcard_match( const std::string &text_in, const std::string &pattern_in )
             }
         } else {
             if( !( *it ).empty() ) {
-                pos = ci_find_substr( text, *it );
+                int pos = ci_find_substr( text, *it );
                 if( pos == -1 ) {
                     return false;
                 }
@@ -2160,7 +2159,7 @@ std::string format_volume( const units::volume &volume, int width, bool *out_tru
 // In non-SDL mode, width/height is just what's specified in the menu
 #if !defined(TILES)
 // We need to override these for Windows console resizing
-#if !(defined _WIN32 || defined __WIN32__)
+#   if !defined(_WIN32)
 int get_terminal_width()
 {
     int width = get_option<int>( "TERMINAL_X" );
@@ -2171,7 +2170,7 @@ int get_terminal_height()
 {
     return get_option<int>( "TERMINAL_Y" );
 }
-#endif
+#   endif
 
 bool is_draw_tiles_mode()
 {

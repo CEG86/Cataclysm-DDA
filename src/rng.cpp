@@ -1,10 +1,9 @@
 #include "rng.h"
 
 #include <chrono>
-#include <cmath>
 #include <cstdlib>
-
-#include "output.h"
+#include <algorithm>
+#include <utility>
 
 static std::uniform_int_distribution<long> rng_int_dist;
 static std::uniform_real_distribution<double> rng_real_dist;
