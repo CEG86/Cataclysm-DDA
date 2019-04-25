@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "cata_utility.h"
+
 static std::uniform_int_distribution<int> rng_int_dist;
 static std::uniform_real_distribution<double> rng_real_dist;
 static std::normal_distribution<double> rng_normal_dist;
@@ -97,7 +99,7 @@ double rng_normal( double lo, double hi )
     return clamp( val, lo, hi );
 }
 
-static std::default_random_engine &rng_get_engine()
+std::default_random_engine &rng_get_engine()
 {
     static std::default_random_engine eng(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() );
