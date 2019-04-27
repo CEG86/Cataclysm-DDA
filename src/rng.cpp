@@ -7,37 +7,35 @@
 
 #include "cata_utility.h"
 
-static std::uniform_int_distribution<int> rng_int_dist;
-static std::uniform_real_distribution<double> rng_real_dist;
-static std::normal_distribution<double> rng_normal_dist;
-static std::uniform_int_distribution<unsigned int>
-rng_uint_dist( 0, std::numeric_limits<unsigned int>::max() );
-
 unsigned int rng_bits()
 {
+    // Whole uint range.
+    static std::uniform_int_distribution<unsigned int> rng_uint_dist;
     return rng_uint_dist( rng_get_engine() );
 }
 
 int rng( int lo, int hi )
 {
+    static std::uniform_int_distribution<int> rng_int_dist;
     if( lo > hi ) {
         std::swap( lo, hi );
     }
-
-    decltype( rng_int_dist.param() ) range( lo, hi );
-    rng_int_dist.param( range );
-    return rng_int_dist( rng_get_engine() );
+    return rng_int_dist( rng_get_engine(), std::uniform_int_distribution<>::param_type( lo, hi ) );
 }
 
 double rng_float( double lo, double hi )
 {
+    static std::uniform_real_distribution<double> rng_real_dist;
     if( lo > hi ) {
         std::swap( lo, hi );
     }
+    return rng_real_dist( rng_get_engine(), std::uniform_real_distribution<>::param_type( lo, hi ) );
+}
 
-    decltype( rng_real_dist.param() ) range( lo, hi );
-    rng_real_dist.param( range );
-    return rng_real_dist( rng_get_engine() );
+double normal_roll( double mean, double stddev )
+{
+    static std::normal_distribution<double> rng_normal_dist;
+    return rng_normal_dist( rng_get_engine(), std::normal_distribution<>::param_type( mean, stddev ) );
 }
 
 bool one_in( int chance )
@@ -47,7 +45,7 @@ bool one_in( int chance )
 
 bool x_in_y( double x, double y )
 {
-    return rng_float( 0, 1 ) * y <= x;
+    return rng_float( 0, y ) <= x;
 }
 
 int dice( int number, int sides )
@@ -111,11 +109,4 @@ void rng_set_engine_seed( unsigned int seed )
     if( seed != 0 ) {
         rng_get_engine().seed( seed );
     }
-}
-
-double normal_roll( double mean, double stddev )
-{
-    decltype( rng_normal_dist.param() ) params( mean, stddev );
-    rng_normal_dist.param( params );
-    return rng_normal_dist( rng_get_engine() );
 }

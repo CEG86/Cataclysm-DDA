@@ -269,7 +269,7 @@ void weather_generator::test_weather() const
         w_point w = get_weather( tripoint_zero, to_turn<int>( i ), rng_bits() );
         weather_type c =  get_weather_conditions( w );
         weather_datum wd = weather_data( c );
-        testfile << to_turn<int>( i ) << "," << w.temperature << "," << w.humidity << "," << w.pressure <<
+        testfile << to_turn<int>( i ) << ";" << w.temperature << ";" << w.humidity << ";" << w.pressure <<
                  ";" << wd.name << ";" << w.windpower << ";" << w.winddirection << std::endl;
     }
 }
